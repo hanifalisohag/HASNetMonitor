@@ -11,7 +11,16 @@
     <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
     <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    <!-- The green/red activity mark shown in Explorer and Task Manager.
+         Regenerate with: python tools/make_icon.py -->
+    <ApplicationIcon>Assets\TaskbarNetMonitor.ico</ApplicationIcon>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- Also embedded as a resource so the settings dialog can load the same mark
+         without depending on where the exe lives. -->
+    <EmbeddedResource Include="Assets\TaskbarNetMonitor.ico" LogicalName="TaskbarNetMonitor.AppIcon.ico" />
+  </ItemGroup>
 
   <ItemGroup>
     <!-- The test project lives inside this folder; keep its sources out of the app. -->
