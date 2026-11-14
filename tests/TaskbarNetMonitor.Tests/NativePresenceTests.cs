@@ -19,9 +19,16 @@ public class NativePresenceTests
             window.Present(bitmap, 30, 40);
             Assert.True(NativeMethods.SetWindowPos(window.Handle, NativeMethods.HWND_NOTOPMOST,
                 0, 0, 0, 0, NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE));
-            Assert.Equal(0, NativeMethods.GetWindowLong(window.Handle, -20) & NativeMethods.WS_EX_TOPMOST);
+
+            // The shell applies an extended-style change asynchronously on a busy
+            // desktop, so wait a bounded moment for the demotion instead of assuming
+            // it landed before SetWindowPos returned. The assertion itself is
+            // unchanged: the flag must really be gone.
+            Assert.Equal(0, WaitForTopMostFlag(window.Handle, expected: false));
+
+            // Repair must put it back; that is synchronous inside RestorePresence.
             Assert.True(window.RestorePresence());
-            Assert.NotEqual(0, NativeMethods.GetWindowLong(window.Handle, -20) & NativeMethods.WS_EX_TOPMOST);
+            Assert.NotEqual(0, WaitForTopMostFlag(window.Handle, expected: true));
             Assert.True(window.IsActuallyVisible);
             Assert.True(NativeMethods.GetWindowRect(window.Handle, out NativeRect rect));
             Assert.Equal((30, 40, 110, 72), (rect.Left, rect.Top, rect.Right, rect.Bottom));
@@ -62,6 +69,26 @@ public class NativePresenceTests
             Assert.True(window.PeekExclusionResult >= 0);
             Assert.False(window.RestorePresence()); // No surface before first presentation.
         });
+    }
+
+    /// <summary>
+    /// Reads WS_EX_TOPMOST, waiting up to a moment for the shell to settle. Returns the
+    /// final flag value, so the caller's assertion still checks the real state.
+    /// </summary>
+    private static long WaitForTopMostFlag(IntPtr handle, bool expected)
+    {
+        long flag = 0;
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(2);
+        while (true)
+        {
+            flag = NativeMethods.GetWindowLong(handle, -20) & NativeMethods.WS_EX_TOPMOST;
+            if ((flag != 0) == expected || DateTime.UtcNow >= deadline)
+            {
+                return flag;
+            }
+
+            Thread.Sleep(10);
+        }
     }
 
     private static void RunSta(Action action)
