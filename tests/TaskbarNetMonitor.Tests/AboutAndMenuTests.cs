@@ -37,7 +37,7 @@ public class AboutAndMenuTests : IDisposable
         int at = AppInfo.ContactEmail.IndexOf('@');
         Assert.True(at > 0, "the contact address has no local part");
         Assert.True(at < AppInfo.ContactEmail.Length - 1, "the contact address has no domain");
-        Assert.DoesNotContain(' ', AppInfo.ContactEmail);
+        Assert.False(AppInfo.ContactEmail.IndexOf(' ') >= 0, "the address contains a space");
         Assert.Contains('.', AppInfo.ContactEmail.Substring(at));
     }
 
@@ -50,8 +50,8 @@ public class AboutAndMenuTests : IDisposable
         Assert.Equal(AppInfo.ReadVersion(typeof(AppInfo).Assembly), version);
 
         // Set in the csproj as <Version>; a build metadata suffix must not leak into the UI.
-        Assert.DoesNotContain('+', version);
-        Assert.DoesNotContain(' ', version);
+        Assert.False(version.IndexOf('+') >= 0, "build metadata leaked into the version");
+        Assert.False(version.IndexOf(' ') >= 0, "the version contains a space");
 
         Version parsed = Version.Parse(version);
         Assert.True(parsed.Major >= 1, $"version {version} looks unset");
@@ -126,9 +126,9 @@ public class AboutAndMenuTests : IDisposable
 
         // Nothing in the menu makes the user handle files, so no folder opening, no
         // Explorer shell-out and no path display is left.
-        Assert.DoesNotContain("Open settings folder", menu, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("OpenSettingsFolder", menu, StringComparison.Ordinal);
-        Assert.DoesNotContain("explorer.exe", menu, StringComparison.OrdinalIgnoreCase);
+        Assert.False(Mentions(menu, "open settings folder"), "the tray still offers the settings folder");
+        Assert.False(Mentions(menu, "OpenSettingsFolder"), "the folder-opening method is still there");
+        Assert.False(Mentions(menu, "explorer.exe"), "the tray still shells out to Explorer");
     }
 
     [Fact]
@@ -172,6 +172,9 @@ public class AboutAndMenuTests : IDisposable
         Assert.True(reloaded.TrySave(path));
         Assert.Equal(reloaded.ToJson(), MonitorConfig.Load(path).ToJson());
     }
+
+    private static bool Mentions(string text, string needle)
+        => text.IndexOf(needle, StringComparison.OrdinalIgnoreCase) >= 0;
 
     private static T RunOnUiThread<T>(Func<T> work)
     {
