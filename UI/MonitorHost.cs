@@ -1,4 +1,3 @@
-using System.Diagnostics;
 using System.Drawing;
 using TaskbarNetMonitor.Core;
 using TaskbarNetMonitor.Interop;
@@ -17,7 +16,7 @@ internal sealed class MonitorHost : ApplicationContext
     private readonly ContextMenuStrip _menu;
     private NotifyIcon? _trayIcon;
     private Icon? _trayMark;
-    private bool _settingsOpen;
+    private bool _modalOpen;
     private bool _disposed;
 
     public MonitorHost()
@@ -133,11 +132,11 @@ internal sealed class MonitorHost : ApplicationContext
         startup.Click += (_, _) => ApplyStartup(startup.Checked);
         menu.Items.Add(startup);
 
-        var openFolder = new ToolStripMenuItem("Open settings folder");
-        openFolder.Click += (_, _) => OpenSettingsFolder();
-        menu.Items.Add(openFolder);
-
         menu.Items.Add(new ToolStripSeparator());
+
+        var about = new ToolStripMenuItem("About\u2026");
+        about.Click += (_, _) => ShowAbout();
+        menu.Items.Add(about);
 
         var exit = new ToolStripMenuItem("Exit");
         exit.Click += (_, _) => Exit();
@@ -146,7 +145,7 @@ internal sealed class MonitorHost : ApplicationContext
         menu.Opening += (_, _) =>
         {
             startup.Checked = _config.StartWithWindows;
-            settings.Enabled = !_settingsOpen;
+            settings.Enabled = !_modalOpen;
 
             foreach (ToolStripItem item in look.DropDownItems)
             {
@@ -190,7 +189,7 @@ internal sealed class MonitorHost : ApplicationContext
 
     private void ShowMenuAt(Point screenPoint)
     {
-        if (_disposed || _settingsOpen)
+        if (_disposed || _modalOpen)
         {
             return;
         }
@@ -204,12 +203,12 @@ internal sealed class MonitorHost : ApplicationContext
 
     private void ShowSettings()
     {
-        if (_disposed || _settingsOpen)
+        if (_disposed || _modalOpen)
         {
             return;
         }
 
-        _settingsOpen = true;
+        _modalOpen = true;
         try
         {
             using var form = new SettingsForm(_config.Clone());
@@ -234,7 +233,7 @@ internal sealed class MonitorHost : ApplicationContext
         }
         finally
         {
-            _settingsOpen = false;
+            _modalOpen = false;
         }
     }
 
@@ -266,20 +265,22 @@ internal sealed class MonitorHost : ApplicationContext
         }
     }
 
-    private void OpenSettingsFolder()
+    private void ShowAbout()
     {
+        if (_disposed || _modalOpen)
+        {
+            return;
+        }
+
+        _modalOpen = true;
         try
         {
-            string? folder = Path.GetDirectoryName(_configPath);
-            if (!string.IsNullOrEmpty(folder))
-            {
-                Directory.CreateDirectory(folder);
-                Process.Start(new ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = true });
-            }
+            using var form = new AboutForm();
+            form.ShowDialog();
         }
-        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or IOException or UnauthorizedAccessException)
+        finally
         {
-            // Nothing to do: opening a folder is a convenience, not a feature.
+            _modalOpen = false;
         }
     }
 

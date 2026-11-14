@@ -10,7 +10,8 @@ shell hides or buries it.
 - Position it by distance from the tray, then nudge it left/right/up/down in pixels
 - Settings apply to the live widget as you change them
 - Optional start with Windows (per-user `Run` key, no admin rights needed)
-- Config is a plain JSON file you can edit by hand
+- Config is a plain JSON file you can edit by hand, saved automatically
+- **About** box with the version, author and contact address
 
 ---
 
@@ -202,9 +203,10 @@ Settings are stored per user at:
 %APPDATA%\TaskbarNetMonitor\config.json
 ```
 
-The menu's **Open settings folder** opens it. On first run a config is written with
-defaults. A `config.json` next to the exe is read as a fallback and then saved to the
-per-user path. The file is plain JSON, tolerates comments and trailing commas, and is
+There is nothing to open and nothing to save by hand: the file is written whenever a
+setting changes, by the tray switches as well as by the settings dialog, and it is
+created with defaults on first run. A `config.json` next to the exe is read as a
+fallback and then saved to the per-user path. The file is plain JSON, tolerates comments and trailing commas, and is
 repaired on load — out-of-range values are clamped, unknown style names fall back to
 `Bars`.
 
@@ -270,8 +272,16 @@ font size, text), **Position** (offset from tray, nudges with arrow buttons, res
 | Position | Nudge left/right 4 px, up/down 2 px, reset |
 | Reset bar scaling | Resets the auto-scaler and the smoothed bar values |
 | Start with Windows | Toggles the `Run` entry |
-| Open settings folder | Opens `%APPDATA%\TaskbarNetMonitor` |
+| About… | App name, version, author and contact |
 | Exit | Quits |
+
+## Version and identity
+
+`TaskbarNetMonitor.csproj` holds `<Version>`, `<Product>` and `<Authors>`, which the
+SDK turns into the exe's file properties. `Core/AppInfo.cs` reads the version back from
+the assembly (dropping any `+commit` build suffix) and holds the author and contact
+address, so the About box and the file on disk cannot disagree. To ship a new version,
+change `<Version>` and rebuild.
 
 ## Project layout
 
@@ -284,9 +294,10 @@ Core/                      config, styles, fonts, geometry, traffic sampling
   Compat.cs                net48 stand-ins for .NET 11 only APIs
   Numeric.cs, Elapsed.cs   Math.Clamp / IsFinite / Stopwatch helpers, both targets
   IsExternalInit.cs        net48 polyfill for `init` accessors
+  AppInfo.cs               name, version, author, contact: the About box's only source
 Interop/                   Win32 declarations
 Rendering/                 layout and the widget renderer
-UI/                        layered window, taskbar widget, settings dialog, host
+UI/                        layered window, taskbar widget, settings and About dialogs, host
 Assets/TaskbarNetMonitor.ico   app icon
 tools/make_icon.py         regenerates the icon from the design grid
 tests/TaskbarNetMonitor.Tests  xUnit tests, run on both targets
