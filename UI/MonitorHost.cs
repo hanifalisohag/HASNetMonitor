@@ -1,7 +1,5 @@
 using System.Diagnostics;
 using System.Drawing;
-using System.Drawing.Drawing2D;
-using System.Drawing.Imaging;
 using TaskbarNetMonitor.Core;
 using TaskbarNetMonitor.Interop;
 
@@ -18,7 +16,7 @@ internal sealed class MonitorHost : ApplicationContext
     private readonly TaskbarWidget _widget;
     private readonly ContextMenuStrip _menu;
     private NotifyIcon? _trayIcon;
-    private IntPtr _iconHandle;
+    private Icon? _trayMark;
     private bool _settingsOpen;
     private bool _disposed;
 
@@ -289,10 +287,15 @@ internal sealed class MonitorHost : ApplicationContext
     {
         try
         {
-            Icon icon = CreateIcon(out _iconHandle);
+            _trayMark = CreateTrayMark(SystemInformation.SmallIconSize);
+            if (_trayMark is null)
+            {
+                return null;
+            }
+
             var tray = new NotifyIcon
             {
-                Icon = icon,
+                Icon = _trayMark,
                 Text = "Taskbar Network Monitor",
                 Visible = true,
                 ContextMenuStrip = _menu,
@@ -306,51 +309,14 @@ internal sealed class MonitorHost : ApplicationContext
         }
     }
 
-    private static Icon CreateIcon(out IntPtr iconHandle)
+    /// <summary>
+    /// The tray mark at the shell's requested small-icon size, taken from the same
+    /// image as the exe icon so the two can never drift apart.
+    /// </summary>
+    internal static Icon? CreateTrayMark(Size smallIconSize)
     {
-        Size size = SystemInformation.SmallIconSize;
-        int edge = Math.Max(16, size.Width);
-        float scale = edge / 16f;
-
-        using var bitmap = new Bitmap(edge, edge, PixelFormat.Format32bppArgb);
-        using (Graphics graphics = Graphics.FromImage(bitmap))
-        {
-            graphics.SmoothingMode = SmoothingMode.AntiAlias;
-            graphics.Clear(Color.Transparent);
-
-            using var downPen = new Pen(Color.FromArgb(46, 204, 113), 2.6f * scale)
-            {
-                StartCap = LineCap.Round,
-                EndCap = LineCap.Round,
-                LineJoin = LineJoin.Round,
-            };
-            using var upPen = new Pen(Color.FromArgb(231, 76, 60), 2.6f * scale)
-            {
-                StartCap = LineCap.Round,
-                EndCap = LineCap.Round,
-                LineJoin = LineJoin.Round,
-            };
-
-            graphics.DrawLines(downPen, new[]
-            {
-                new PointF(2.4f * scale, 5.6f * scale),
-                new PointF(5.8f * scale, 9.4f * scale),
-                new PointF(9.2f * scale, 5.6f * scale),
-            });
-
-            graphics.DrawLines(upPen, new[]
-            {
-                new PointF(10.2f * scale, 10.4f * scale),
-                new PointF(13.6f * scale, 6.6f * scale),
-                new PointF(17f * scale, 10.4f * scale),
-            });
-
-            graphics.DrawLine(downPen, 5.8f * scale, 9.4f * scale, 5.8f * scale, 13.4f * scale);
-            graphics.DrawLine(upPen, 13.6f * scale, 2.6f * scale, 13.6f * scale, 6.6f * scale);
-        }
-
-        iconHandle = bitmap.GetHicon();
-        return Icon.FromHandle(iconHandle);
+        int edge = Math.Max(16, Math.Max(smallIconSize.Width, smallIconSize.Height));
+        return AppIcon.LoadForSize(edge);
     }
 
     protected override void Dispose(bool disposing)
@@ -366,11 +332,8 @@ internal sealed class MonitorHost : ApplicationContext
                 _trayIcon = null;
             }
 
-            if (_iconHandle != IntPtr.Zero)
-            {
-                NativeMethods.DestroyIcon(_iconHandle);
-                _iconHandle = IntPtr.Zero;
-            }
+            _trayMark?.Dispose();
+            _trayMark = null;
 
             _widget.Dispose();
             _menu.Dispose();

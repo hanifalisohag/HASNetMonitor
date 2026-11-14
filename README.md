@@ -239,15 +239,22 @@ tests/TaskbarNetMonitor.Tests  xUnit tests
 
 ## Regenerating the icon
 
-`Assets/TaskbarNetMonitor.ico` drives both the exe icon and the settings dialog (it is
-also embedded as a resource). To change the mark, edit the 16-unit grid in
-`tools/make_icon.py` and run:
+`Assets/TaskbarNetMonitor.ico` is the single definition of the app mark: it drives the
+exe icon in Explorer, the notification-area (tray) icon, and the settings dialog. The
+file is also embedded as an assembly resource, so the tray and dialog load it without
+depending on where the exe lives — no surface draws its own copy, which is what keeps
+them identical.
+
+To change the mark, edit the 16-unit grid in `tools/make_icon.py` and run:
 
 ```bash
 python -m pip install pillow   # once
 python tools/make_icon.py
 dotnet build -t:Rebuild
 ```
+
+Keep every size in `SIZES` in `tools/make_icon.py`: the shell asks for 16, 20, 24, 32
+and 40 px depending on DPI and view, and a missing frame gets scaled, which looks soft.
 
 ## Troubleshooting
 
