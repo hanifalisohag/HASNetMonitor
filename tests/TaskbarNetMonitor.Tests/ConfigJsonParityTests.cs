@@ -206,6 +206,49 @@ public class ConfigJsonParityTests
     }
 
     [Fact]
+    public void ConcurrentReadersAndWritersStayConsistent()
+    {
+        // The settings dialog and the widget can touch the config at the same time, and
+        // xunit runs these classes in parallel. Both backends must survive that: same
+        // text out, no lost values, no exception. The net48 backend needs its lock for
+        // this, because JavaScriptSerializer is documented as not thread safe.
+        string expected = Populated().ToJson();
+        var problems = new System.Collections.Concurrent.ConcurrentBag<string>();
+
+        Parallel.For(0, 16, worker =>
+        {
+            for (int round = 0; round < 40; round++)
+            {
+                try
+                {
+                    string text = Populated().ToJson();
+                    if (!string.Equals(text, expected, StringComparison.Ordinal))
+                    {
+                        problems.Add($"worker {worker} serialised differently");
+                    }
+
+                    MonitorConfig parsed = MonitorConfig.FromJson(expected);
+                    if (!string.Equals(parsed.ToJson(), expected, StringComparison.Ordinal))
+                    {
+                        problems.Add($"worker {worker} round-trip differed");
+                    }
+
+                    if (parsed.RefreshIntervalMs != 500 || parsed.MaxScaleMbps != 250.5)
+                    {
+                        problems.Add($"worker {worker} lost a value");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    problems.Add($"worker {worker} threw {ex.GetType().Name}: {ex.Message}");
+                }
+            }
+        });
+
+        Assert.Empty(problems);
+    }
+
+    [Fact]
     public void TheHelpersMatchTheFrameworkBehaviourTheyReplace()
     {
         // Numeric.Clamp and Numeric.IsFinite stand in for Math.Clamp and

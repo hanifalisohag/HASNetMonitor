@@ -90,7 +90,7 @@ dotnet test tests/TaskbarNetMonitor.Tests/TaskbarNetMonitor.Tests.csproj \
   --collect:"XPlat Code Coverage" --results-directory TestResults
 ```
 
-The suite is 319 tests per target, and it runs against **both** app targets, so the
+The suite is 320 tests per target, and it runs against **both** app targets, so the
 `net48` build that ships is held to exactly the same tests as the development build.
 Use `-f net48` to test only the shipping target — slower per test, but it exercises the
 .NET Framework code paths (config parsing, compatibility helpers). Five of them drive real
@@ -290,6 +290,7 @@ UI/                        layered window, taskbar widget, settings dialog, host
 Assets/TaskbarNetMonitor.ico   app icon
 tools/make_icon.py         regenerates the icon from the design grid
 tests/TaskbarNetMonitor.Tests  xUnit tests, run on both targets
+  MathBridge.cs            net48 alias so the tests' Math.Clamp compiles
 ```
 
 ## Regenerating the icon

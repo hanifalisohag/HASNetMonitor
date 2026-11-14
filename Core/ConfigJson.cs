@@ -25,17 +25,28 @@ internal sealed class ConfigFormatException(string message, Exception? inner = n
 internal static class ConfigJson
 {
 #if NETFRAMEWORK
+    /// <summary>
+    /// JavaScriptSerializer is documented as not thread safe, and its reflection caches
+    /// are process-wide, so concurrent calls can interfere even with one instance per
+    /// call. Config reads and writes are rare, so a single lock is the cheapest way to
+    /// make this backend safe when the widget and a settings dialog touch it at once.
+    /// </summary>
+    private static readonly object Gate = new();
+
     public static string Serialize(MonitorConfig config)
     {
-        var serializer = new System.Web.Script.Serialization.JavaScriptSerializer
+        lock (Gate)
         {
-            MaxJsonLength = int.MaxValue,
-        };
+            var serializer = new System.Web.Script.Serialization.JavaScriptSerializer
+            {
+                MaxJsonLength = int.MaxValue,
+            };
 
-        // The in-box serializer is compact and unordered; indent it so the file stays
-        // readable and hand-editable, which is a documented feature.
-        string compact = serializer.Serialize(config);
-        return Indent(compact);
+            // The in-box serializer is compact and unordered; indent it so the file
+            // stays readable and hand-editable, which is a documented feature.
+            string compact = serializer.Serialize(config);
+            return Indent(compact);
+        }
     }
 
     public static MonitorConfig Deserialize(string json)
@@ -43,12 +54,16 @@ internal static class ConfigJson
         try
         {
             string cleaned = StripCommentsAndTrailingCommas(json);
-            var serializer = new System.Web.Script.Serialization.JavaScriptSerializer
-            {
-                MaxJsonLength = int.MaxValue,
-            };
 
-            return serializer.Deserialize<MonitorConfig>(cleaned) ?? new MonitorConfig();
+            lock (Gate)
+            {
+                var serializer = new System.Web.Script.Serialization.JavaScriptSerializer
+                {
+                    MaxJsonLength = int.MaxValue,
+                };
+
+                return serializer.Deserialize<MonitorConfig>(cleaned) ?? new MonitorConfig();
+            }
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.Runtime.Serialization.SerializationException or FormatException)
         {
