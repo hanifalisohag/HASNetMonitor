@@ -58,9 +58,11 @@ public class TaskViewSeatTests
         }
     }
 
-    [Fact]
+    [SkippableFact]
     public void AShellWindowDrawnAtAPaintedPixelCountsAsCovering()
     {
+        Skip.IfNot(InteractiveDesktop.IsAvailable, InteractiveDesktop.Reason);
+
         using var widget = ClassWindow.Create("SeatTestWidget");
         using var shell = ClassWindow.Create("SeatTestShell");
 
@@ -73,9 +75,11 @@ public class TaskViewSeatTests
             "a shell window over the sampled pixel is covering the widget");
     }
 
-    [Fact]
+    [SkippableFact]
     public void AMovedAwayShellIsNotCovering()
     {
+        Skip.IfNot(InteractiveDesktop.IsAvailable, InteractiveDesktop.Reason);
+
         using var widget = ClassWindow.Create("SeatTestWidget2");
         using var shell = ClassWindow.Create("SeatTestShell2");
 
@@ -90,9 +94,11 @@ public class TaskViewSeatTests
             "nothing else was touched, so the widget is no longer covered");
     }
 
-    [Fact]
+    [SkippableFact]
     public void AnotherWindowOverTheWidgetIsNotTheTaskbar()
     {
+        Skip.IfNot(InteractiveDesktop.IsAvailable, InteractiveDesktop.Reason);
+
         // A menu or flyout overlapping the widget must never be mistaken for the taskbar
         // covering it, or the widget fights the menu and blinks.
         using var widget = ClassWindow.Create("SeatTestWidget3");

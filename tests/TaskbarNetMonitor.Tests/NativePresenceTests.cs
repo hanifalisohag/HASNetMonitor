@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Drawing.Imaging;
+using System.Runtime.InteropServices;
 using TaskbarNetMonitor.Interop;
 using TaskbarNetMonitor.UI;
 
@@ -7,9 +8,11 @@ namespace TaskbarNetMonitor.Tests;
 
 public class NativePresenceTests
 {
-    [Fact]
+    [SkippableFact]
     public void NativeTopmostDemotionIsRepairedWithoutMovingOrHidingTheWidget()
     {
+        Skip.IfNot(InteractiveDesktop.IsAvailable, InteractiveDesktop.Reason);
+
         RunSta(() =>
         {
             using var window = new LayeredWindow();
@@ -17,14 +20,13 @@ public class NativePresenceTests
             using (Graphics graphics = Graphics.FromImage(bitmap))
                 graphics.Clear(Color.Lime);
             window.Present(bitmap, 30, 40);
-            Assert.True(NativeMethods.SetWindowPos(window.Handle, NativeMethods.HWND_NOTOPMOST,
-                0, 0, 0, 0, NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE));
 
-            // The shell applies an extended-style change asynchronously on a busy
-            // desktop, so wait a bounded moment for the demotion instead of assuming
-            // it landed before SetWindowPos returned. The assertion itself is
-            // unchanged: the flag must really be gone.
-            Assert.Equal(0, WaitForTopMostFlag(window.Handle, expected: false));
+            // The shell can apply an extended-style change late, or drop a single
+            // request on a busy desktop, so the demotion is requested until the flag
+            // really clears (bounded). The assertion is unchanged: the flag must be
+            // gone afterwards, and a window that never demotes still fails.
+            long demoted = DemoteUntilCleared(window.Handle, out int lastError);
+            Assert.True(demoted == 0, $"the window stayed topmost (last Win32 error {lastError})");
 
             // Repair must put it back; that is synchronous inside RestorePresence.
             Assert.True(window.RestorePresence());
@@ -35,9 +37,11 @@ public class NativePresenceTests
         });
     }
 
-    [Fact]
+    [SkippableFact]
     public void NativeHideAndDisplacementAreRepairedWithoutNewTraffic()
     {
+        Skip.IfNot(InteractiveDesktop.IsAvailable, InteractiveDesktop.Reason);
+
         RunSta(() =>
         {
             using var window = new LayeredWindow();
@@ -69,6 +73,36 @@ public class NativePresenceTests
             Assert.True(window.PeekExclusionResult >= 0);
             Assert.False(window.RestorePresence()); // No surface before first presentation.
         });
+    }
+
+    /// <summary>
+    /// Requests WS_EX_TOPMOST be cleared until it is, returning the final flag value.
+    /// A single request can be applied late or dropped when the desktop is busy; a
+    /// window that never demotes still comes back with the flag set.
+    /// </summary>
+    private static long DemoteUntilCleared(IntPtr handle, out int lastError)
+    {
+        lastError = 0;
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+        while (true)
+        {
+            if (!NativeMethods.SetWindowPos(
+                handle,
+                NativeMethods.HWND_NOTOPMOST,
+                0, 0, 0, 0,
+                NativeMethods.SWP_NOMOVE | NativeMethods.SWP_NOSIZE | NativeMethods.SWP_NOACTIVATE))
+            {
+                lastError = Marshal.GetLastWin32Error();
+            }
+
+            long flag = NativeMethods.GetWindowLong(handle, -20) & NativeMethods.WS_EX_TOPMOST;
+            if (flag == 0 || DateTime.UtcNow >= deadline)
+            {
+                return flag;
+            }
+
+            Thread.Sleep(20);
+        }
     }
 
     /// <summary>
