@@ -1,0 +1,254 @@
+using System.Diagnostics;
+using System.Drawing;
+using System.Drawing.Drawing2D;
+using System.Drawing.Imaging;
+using TaskbarNetMonitor.Core;
+using TaskbarNetMonitor.Interop;
+
+namespace TaskbarNetMonitor.UI;
+
+/// <summary>
+/// Owns the widget, the tray icon and the menu. Runs for the whole session; nothing
+/// here is per-frame, so the UI thread stays idle while the network is quiet.
+/// </summary>
+internal sealed class MonitorHost : ApplicationContext
+{
+    private readonly MonitorConfig _config;
+    private readonly string _configPath;
+    private readonly TaskbarWidget _widget;
+    private readonly ContextMenuStrip _menu;
+    private NotifyIcon? _trayIcon;
+    private IntPtr _iconHandle;
+    private bool _settingsOpen;
+    private bool _disposed;
+
+    public MonitorHost()
+    {
+        _configPath = MonitorConfig.DefaultConfigPath;
+        bool firstRun = !File.Exists(_configPath);
+
+        _config = MonitorConfig.Load(_configPath, MonitorConfig.LegacyConfigPath);
+        if (firstRun)
+        {
+            _config.TrySave(_configPath);
+        }
+
+        _menu = BuildMenu();
+        _widget = new TaskbarWidget(_config);
+        _widget.MenuRequested += ShowMenuAt;
+
+        _trayIcon = CreateTrayIcon();
+
+        // The config is the source of truth: the Run entry follows it on every start,
+        // which also repairs it after a Windows update cleans the key.
+        ApplyStartup(_config.StartWithWindows);
+
+        _widget.ForceRedraw();
+    }
+
+    public void Exit()
+    {
+        ExitThread();
+    }
+
+    private ContextMenuStrip BuildMenu()
+    {
+        var menu = new ContextMenuStrip();
+
+        var settings = new ToolStripMenuItem("Settings\u2026");
+        settings.Click += (_, _) => ShowSettings();
+        menu.Items.Add(settings);
+
+        var rescale = new ToolStripMenuItem("Reset bar scaling");
+        rescale.Click += (_, _) => _widget.ResetScale();
+        menu.Items.Add(rescale);
+
+        var startup = new ToolStripMenuItem("Start with Windows") { CheckOnClick = true };
+        startup.Click += (_, _) => ApplyStartup(startup.Checked);
+        menu.Items.Add(startup);
+
+        var openFolder = new ToolStripMenuItem("Open settings folder");
+        openFolder.Click += (_, _) => OpenSettingsFolder();
+        menu.Items.Add(openFolder);
+
+        menu.Items.Add(new ToolStripSeparator());
+
+        var exit = new ToolStripMenuItem("Exit");
+        exit.Click += (_, _) => Exit();
+        menu.Items.Add(exit);
+
+        menu.Opening += (_, _) =>
+        {
+            startup.Checked = _config.StartWithWindows;
+            settings.Enabled = !_settingsOpen;
+        };
+
+        return menu;
+    }
+
+    private void ShowMenuAt(Point screenPoint)
+    {
+        if (_disposed || _settingsOpen)
+        {
+            return;
+        }
+
+        _menu.Show(screenPoint);
+
+        // A no-activate window never owns the foreground, so the popup needs a nudge
+        // to dismiss itself when the user clicks elsewhere.
+        NativeMethods.SetForegroundWindow(_menu.Handle);
+    }
+
+    private void ShowSettings()
+    {
+        if (_disposed || _settingsOpen)
+        {
+            return;
+        }
+
+        _settingsOpen = true;
+        try
+        {
+            using var form = new SettingsForm(_config.Clone());
+            if (form.ShowDialog() != DialogResult.OK || form.Result is not { } updated)
+            {
+                return;
+            }
+
+            _config.CopyFrom(updated);
+            _config.TrySave(_configPath);
+            _widget.ApplyConfig();
+            ApplyStartup(_config.StartWithWindows);
+        }
+        finally
+        {
+            _settingsOpen = false;
+        }
+    }
+
+    private void ApplyStartup(bool enabled)
+    {
+        try
+        {
+            StartupRegistration.SetEnabled(enabled);
+            _config.StartWithWindows = enabled;
+            _config.TrySave(_configPath);
+        }
+        catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException)
+        {
+            // Locked-down profile: the widget keeps working, it just will not autostart.
+        }
+    }
+
+    private void OpenSettingsFolder()
+    {
+        try
+        {
+            string? folder = Path.GetDirectoryName(_configPath);
+            if (!string.IsNullOrEmpty(folder))
+            {
+                Directory.CreateDirectory(folder);
+                Process.Start(new ProcessStartInfo("explorer.exe", $"\"{folder}\"") { UseShellExecute = true });
+            }
+        }
+        catch (Exception ex) when (ex is System.ComponentModel.Win32Exception or IOException or UnauthorizedAccessException)
+        {
+            // Nothing to do: opening a folder is a convenience, not a feature.
+        }
+    }
+
+    private NotifyIcon? CreateTrayIcon()
+    {
+        try
+        {
+            Icon icon = CreateIcon(out _iconHandle);
+            var tray = new NotifyIcon
+            {
+                Icon = icon,
+                Text = "Taskbar Network Monitor",
+                Visible = true,
+                ContextMenuStrip = _menu,
+            };
+            tray.DoubleClick += (_, _) => ShowSettings();
+            return tray;
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            return null;
+        }
+    }
+
+    private static Icon CreateIcon(out IntPtr iconHandle)
+    {
+        Size size = SystemInformation.SmallIconSize;
+        int edge = Math.Max(16, size.Width);
+        float scale = edge / 16f;
+
+        using var bitmap = new Bitmap(edge, edge, PixelFormat.Format32bppArgb);
+        using (Graphics graphics = Graphics.FromImage(bitmap))
+        {
+            graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            graphics.Clear(Color.Transparent);
+
+            using var downPen = new Pen(Color.FromArgb(46, 204, 113), 2.6f * scale)
+            {
+                StartCap = LineCap.Round,
+                EndCap = LineCap.Round,
+                LineJoin = LineJoin.Round,
+            };
+            using var upPen = new Pen(Color.FromArgb(231, 76, 60), 2.6f * scale)
+            {
+                StartCap = LineCap.Round,
+                EndCap = LineCap.Round,
+                LineJoin = LineJoin.Round,
+            };
+
+            graphics.DrawLines(downPen, new[]
+            {
+                new PointF(2.4f * scale, 5.6f * scale),
+                new PointF(5.8f * scale, 9.4f * scale),
+                new PointF(9.2f * scale, 5.6f * scale),
+            });
+
+            graphics.DrawLines(upPen, new[]
+            {
+                new PointF(10.2f * scale, 10.4f * scale),
+                new PointF(13.6f * scale, 6.6f * scale),
+                new PointF(17f * scale, 10.4f * scale),
+            });
+
+            graphics.DrawLine(downPen, 5.8f * scale, 9.4f * scale, 5.8f * scale, 13.4f * scale);
+            graphics.DrawLine(upPen, 13.6f * scale, 2.6f * scale, 13.6f * scale, 6.6f * scale);
+        }
+
+        iconHandle = bitmap.GetHicon();
+        return Icon.FromHandle(iconHandle);
+    }
+
+    protected override void Dispose(bool disposing)
+    {
+        if (disposing && !_disposed)
+        {
+            _disposed = true;
+
+            if (_trayIcon is not null)
+            {
+                _trayIcon.Visible = false;
+                _trayIcon.Dispose();
+                _trayIcon = null;
+            }
+
+            if (_iconHandle != IntPtr.Zero)
+            {
+                NativeMethods.DestroyIcon(_iconHandle);
+                _iconHandle = IntPtr.Zero;
+            }
+
+            _widget.Dispose();
+            _menu.Dispose();
+        }
+
+        base.Dispose(disposing);
+    }
+}

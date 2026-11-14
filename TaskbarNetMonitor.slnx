@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/tests/">
+    <Project Path="tests/TaskbarNetMonitor.Tests/TaskbarNetMonitor.Tests.csproj" />
+  </Folder>
+  <Project Path="TaskbarNetMonitor.csproj" />
+</Solution>
