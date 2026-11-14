@@ -224,7 +224,17 @@ public class ConfigJsonParityTests
                     string text = Populated().ToJson();
                     if (!string.Equals(text, expected, StringComparison.Ordinal))
                     {
-                        problems.Add($"worker {worker} serialised differently");
+                        // Report where the two texts part company: a value that changed
+                        // and an ordering that changed look the same from the outside.
+                        int d = 0;
+                        while (d < text.Length && d < expected.Length && text[d] == expected[d])
+                        {
+                            d++;
+                        }
+
+                        string a = d < text.Length ? text.Substring(d, Math.Min(40, text.Length - d)) : "<end>";
+                        string b = d < expected.Length ? expected.Substring(d, Math.Min(40, expected.Length - d)) : "<end>";
+                        problems.Add($"worker {worker} serialised differently at {d}: [{a}] vs [{b}]");
                     }
 
                     MonitorConfig parsed = MonitorConfig.FromJson(expected);

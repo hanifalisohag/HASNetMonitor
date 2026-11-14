@@ -28,7 +28,7 @@ public class AppIconTests
     [Fact]
     public void TheProjectEmbedsTheIconInTheExe()
     {
-        string project = File.ReadAllText(Path.Combine(RepositoryRoot(), "TaskbarNetMonitor.csproj"));
+        string project = File.ReadAllText(Path.Combine(RepositoryRoot(), "HASNetMonitor.csproj"));
 
         Match declared = Regex.Match(
             project,
@@ -40,13 +40,13 @@ public class AppIconTests
         Assert.True(
             File.Exists(Path.Combine(RepositoryRoot(), relative)),
             $"ApplicationIcon points at '{relative}', which does not exist");
-        Assert.Equal("Assets/TaskbarNetMonitor.ico", relative.Replace('\\', '/'));
+        Assert.Equal("Assets/HASNetMonitor.ico", relative.Replace('\\', '/'));
     }
 
     [Fact]
     public void TheBuiltExeReallyCarriesTheMark()
     {
-        string exe = Path.Combine(AppContext.BaseDirectory, "TaskbarNetMonitor.exe");
+        string exe = Path.Combine(AppContext.BaseDirectory, "HASNetMonitor.exe");
         Assert.True(File.Exists(exe), "the app exe should be copied next to the tests");
 
         using Icon? embedded = Icon.ExtractAssociatedIcon(exe);
@@ -194,14 +194,14 @@ public class AppIconTests
     }
 
     private static string IconPath() =>
-        Path.Combine(RepositoryRoot(), "Assets", "TaskbarNetMonitor.ico");
+        Path.Combine(RepositoryRoot(), "Assets", "HASNetMonitor.ico");
 
     private static string RepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null)
         {
-            if (File.Exists(Path.Combine(directory.FullName, "TaskbarNetMonitor.csproj")))
+            if (File.Exists(Path.Combine(directory.FullName, "HASNetMonitor.csproj")))
             {
                 return directory.FullName;
             }

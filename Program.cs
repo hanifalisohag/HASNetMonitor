@@ -7,7 +7,7 @@ namespace TaskbarNetMonitor;
 
 internal static class Program
 {
-    private const string SingleInstanceMutexName = @"Local\TaskbarNetMonitor.Instance";
+    private const string SingleInstanceMutexName = @"Local\HASNetMonitor.Instance";
 
     [STAThread]
     private static int Main(string[] args)

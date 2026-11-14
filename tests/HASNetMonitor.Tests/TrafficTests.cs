@@ -434,9 +434,9 @@ public class StartupRegistrationTests
     [Fact]
     public void TheRunCommandQuotesTheExecutableSoSpacesSurvive()
     {
-        string command = StartupRegistration.BuildCommand(@"C:\Program Files\Taskbar Net Monitor\TaskbarNetMonitor.exe");
+        string command = StartupRegistration.BuildCommand(@"C:\Program Files\HAS Net Monitor\HASNetMonitor.exe");
 
-        Assert.Equal("\"C:\\Program Files\\Taskbar Net Monitor\\TaskbarNetMonitor.exe\"", command);
+        Assert.Equal("\"C:\\Program Files\\HAS Net Monitor\\HASNetMonitor.exe\"", command);
     }
 
     [Fact]
@@ -461,6 +461,6 @@ public class StartupRegistrationTests
     public void TheRunKeyNameIsStable()
     {
         // Changing this would silently leave two entries in HKCU\...\Run.
-        Assert.Equal("TaskbarNetMonitor", StartupRegistration.ValueName);
+        Assert.Equal("HASNetMonitor", StartupRegistration.ValueName);
     }
 }

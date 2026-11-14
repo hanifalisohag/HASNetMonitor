@@ -1,4 +1,4 @@
-"""Generates Assets/TaskbarNetMonitor.ico: the app's green-download / red-upload mark."""
+"""Generates Assets/HASNetMonitor.ico: the app's green-download / red-upload mark."""
 import io
 import struct
 from PIL import Image, ImageDraw
@@ -106,7 +106,7 @@ def main():
         )
         offset += len(data)
 
-    with open("Assets/TaskbarNetMonitor.ico", "wb") as handle:
+    with open("Assets/HASNetMonitor.ico", "wb") as handle:
         handle.write(bytes(directory))
         for _, data in images:
             handle.write(data)

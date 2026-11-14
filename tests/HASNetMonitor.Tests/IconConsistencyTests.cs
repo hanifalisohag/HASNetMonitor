@@ -24,7 +24,7 @@ public class IconConsistencyTests
     [Fact]
     public void TheTrayIconMatchesTheIconAssetAtEveryShellSize()
     {
-        byte[] asset = File.ReadAllBytes(Path.Combine(RepositoryRoot(), "Assets", "TaskbarNetMonitor.ico"));
+        byte[] asset = File.ReadAllBytes(Path.Combine(RepositoryRoot(), "Assets", "HASNetMonitor.ico"));
 
         foreach (int edge in new[] { 16, 20, 24, 32, 40, 48 })
         {
@@ -193,14 +193,14 @@ public class IconConsistencyTests
     }
 
     private static string ExePath() =>
-        Path.Combine(AppContext.BaseDirectory, "TaskbarNetMonitor.exe");
+        Path.Combine(AppContext.BaseDirectory, "HASNetMonitor.exe");
 
     private static string RepositoryRoot()
     {
         var directory = new DirectoryInfo(AppContext.BaseDirectory);
         while (directory is not null)
         {
-            if (File.Exists(Path.Combine(directory.FullName, "TaskbarNetMonitor.csproj")))
+            if (File.Exists(Path.Combine(directory.FullName, "HASNetMonitor.csproj")))
             {
                 return directory.FullName;
             }

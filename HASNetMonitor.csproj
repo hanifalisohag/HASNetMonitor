@@ -13,19 +13,19 @@
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
     <RootNamespace>TaskbarNetMonitor</RootNamespace>
-    <AssemblyName>TaskbarNetMonitor</AssemblyName>
+    <AssemblyName>HASNetMonitor</AssemblyName>
     <!-- The version shown in the About box and in the exe's file properties.
          Core/AppInfo.cs reads it back from the assembly. -->
     <Version>1.0.0</Version>
-    <Product>Taskbar Net Monitor</Product>
+    <Product>HAS NetMonitor</Product>
     <Authors>Md Hanif Ali Sohag</Authors>
     <Company>Md Hanif Ali Sohag</Company>
     <!-- Shown as "Description" in Explorer's file properties. -->
-    <AssemblyTitle>Taskbar Net Monitor</AssemblyTitle>
+    <AssemblyTitle>HAS NetMonitor</AssemblyTitle>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <!-- The green/red activity mark shown in Explorer and Task Manager.
          Regenerate with: python tools/make_icon.py -->
-    <ApplicationIcon>Assets\TaskbarNetMonitor.ico</ApplicationIcon>
+    <ApplicationIcon>Assets\HASNetMonitor.ico</ApplicationIcon>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(TargetFramework)' == 'net11.0-windows'">
@@ -43,7 +43,7 @@
   <ItemGroup>
     <!-- Also embedded as a resource so the settings dialog, the tray icon and the
          exe icon are all the same mark, wherever the exe lives. -->
-    <EmbeddedResource Include="Assets\TaskbarNetMonitor.ico" LogicalName="TaskbarNetMonitor.AppIcon.ico" />
+    <EmbeddedResource Include="Assets\HASNetMonitor.ico" LogicalName="HASNetMonitor.AppIcon.ico" />
   </ItemGroup>
 
   <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
@@ -61,7 +61,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <InternalsVisibleTo Include="TaskbarNetMonitor.Tests" />
+    <InternalsVisibleTo Include="HASNetMonitor.Tests" />
   </ItemGroup>
 
   <ItemGroup>

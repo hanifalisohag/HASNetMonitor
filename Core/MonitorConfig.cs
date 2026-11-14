@@ -86,7 +86,7 @@ internal sealed class MonitorConfig
 
     public static string DefaultConfigPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
-        "TaskbarNetMonitor",
+        "HASNetMonitor",
         "config.json");
 
     public static string LegacyConfigPath => Path.Combine(AppContext.BaseDirectory, "config.json");

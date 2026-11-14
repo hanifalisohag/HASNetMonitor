@@ -297,7 +297,9 @@ internal sealed class MonitorHost : ApplicationContext
             var tray = new NotifyIcon
             {
                 Icon = _trayMark,
-                Text = "Taskbar Network Monitor",
+                // The tooltip is the app's name, from the one place that defines it, so
+                // it cannot drift from the About box.
+                Text = AppInfo.Name,
                 Visible = true,
                 ContextMenuStrip = _menu,
             };

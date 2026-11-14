@@ -5,12 +5,12 @@ namespace TaskbarNetMonitor.UI;
 
 /// <summary>
 /// The application mark: the green-download / red-upload arrows from
-/// Assets/TaskbarNetMonitor.ico, embedded in the assembly. This is the only definition
+/// Assets/HASNetMonitor.ico, embedded in the assembly. This is the only definition
 /// of the mark - the exe icon, the tray icon and the settings dialog all use it.
 /// </summary>
 public static class AppIcon
 {
-    private const string ResourceName = "TaskbarNetMonitor.AppIcon.ico";
+    private const string ResourceName = "HASNetMonitor.AppIcon.ico";
 
     private static readonly Lazy<byte[]> Data = new(ReadResource);
 

@@ -9,8 +9,8 @@ namespace TaskbarNetMonitor.Core;
 /// </summary>
 internal static class AppInfo
 {
-    /// <summary>Shown to the user. The assembly and folder name stay TaskbarNetMonitor.</summary>
-    public const string Name = "Taskbar Net Monitor";
+    /// <summary>Shown to the user. The exe, config folder and logon entry all use it.</summary>
+    public const string Name = "HAS NetMonitor";
 
     public const string Author = "Md Hanif Ali Sohag";
 
@@ -67,6 +67,6 @@ internal static class AppInfo
         return trimmed.Length == 0 ? null : trimmed;
     }
 
-    /// <summary>"Taskbar Net Monitor 1.0.0", as the dialog and tooltip show it.</summary>
+    /// <summary>"HAS NetMonitor 1.0.0", as the dialog shows it.</summary>
     public static string Title => $"{Name} {Version}";
 }

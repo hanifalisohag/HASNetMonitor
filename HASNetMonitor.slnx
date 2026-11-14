@@ -1,0 +1,6 @@
+<Solution>
+  <Folder Name="/tests/">
+    <Project Path="tests/HASNetMonitor.Tests/HASNetMonitor.Tests.csproj" />
+  </Folder>
+  <Project Path="HASNetMonitor.csproj" />
+</Solution>

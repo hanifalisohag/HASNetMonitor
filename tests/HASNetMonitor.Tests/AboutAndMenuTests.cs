@@ -27,9 +27,34 @@ public class AboutAndMenuTests : IDisposable
     }
 
     [Fact]
+    public void EverythingTheUserCanSeeCarriesTheNewName()
+    {
+        // Product identity comes from the app project, spelled exactly as the About box.
+        string project = SourceText.Read(".", "HASNetMonitor.csproj");
+        Assert.Contains("<AssemblyName>HASNetMonitor</AssemblyName>", project, StringComparison.Ordinal);
+        Assert.Contains($"<Product>{AppInfo.Name}</Product>", project, StringComparison.Ordinal);
+        Assert.Contains($"<AssemblyTitle>{AppInfo.Name}</AssemblyTitle>", project, StringComparison.Ordinal);
+        Assert.False(project.IndexOf("TaskbarNetMonitor.ico", StringComparison.Ordinal) >= 0,
+            "the project still points at the old icon file");
+
+        // The exe, the autostart value and the config folder are the names the OS sees.
+        Assert.Equal("HASNetMonitor", StartupRegistration.ValueName);
+        Assert.Equal("TaskbarNetMonitor", StartupRegistration.LegacyValueName);
+        Assert.True(
+            MonitorConfig.DefaultConfigPath.EndsWith(
+                "HASNetMonitor" + Path.DirectorySeparatorChar + "config.json",
+                StringComparison.OrdinalIgnoreCase),
+            MonitorConfig.DefaultConfigPath);
+
+        // The one place the old name is still allowed to appear, and what it is for.
+        string startup = SourceText.Read("Core", "StartupRegistration.cs");
+        Assert.Contains("key.DeleteValue(LegacyValueName", startup, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void TheIdentityIsWhatTheUserIsTold()
     {
-        Assert.Equal("Taskbar Net Monitor", AppInfo.Name);
+        Assert.Equal("HAS NetMonitor", AppInfo.Name);
         Assert.Equal("Md Hanif Ali Sohag", AppInfo.Author);
         Assert.Equal("hanifalisohag@gmail.com", AppInfo.ContactEmail);
 
@@ -69,7 +94,7 @@ public class AboutAndMenuTests : IDisposable
         Assert.NotNull(assembly.GetCustomAttribute<AssemblyProductAttribute>());
 
         string product = assembly.GetCustomAttribute<AssemblyProductAttribute>()!.Product;
-        Assert.Equal("Taskbar Net Monitor", product);
+        Assert.Equal("HAS NetMonitor", product);
 
         string authors = assembly.GetCustomAttribute<AssemblyCompanyAttribute>()!.Company;
         Assert.Equal(AppInfo.Author, authors);
@@ -113,6 +138,17 @@ public class AboutAndMenuTests : IDisposable
 
         // The box shows the same mark as the exe and the tray, never the stock one.
         Assert.True(hasIcon, "the About box has no application icon");
+    }
+
+    [Fact]
+    public void TheTrayTooltipUsesTheSameNameAsTheAboutBox()
+    {
+        // The tooltip used to be its own hardcoded string and had already drifted from
+        // the About box. It must come from AppInfo instead.
+        string host = SourceText.Read("UI", "MonitorHost.cs");
+        Assert.Contains("Text = AppInfo.Name", host, StringComparison.Ordinal);
+        Assert.False(Mentions(host, "Text = \"HAS Net Monitor\""), "the tooltip is hardcoded again");
+        Assert.False(Mentions(host, "Text = \"" + AppInfo.Name + "\""), "the tooltip is hardcoded again");
     }
 
     [Fact]

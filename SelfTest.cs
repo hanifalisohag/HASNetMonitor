@@ -9,7 +9,7 @@ namespace TaskbarNetMonitor;
 /// <summary>
 /// Headless smoke test of the pieces that can be exercised without a screen:
 /// formatting, rate maths, config handling, taskbar geometry and the actual pixels
-/// the renderer produces. Run it with <c>TaskbarNetMonitor.exe --self-test</c>.
+/// the renderer produces. Run it with <c>HASNetMonitor.exe --self-test</c>.
 /// </summary>
 internal static class SelfTest
 {

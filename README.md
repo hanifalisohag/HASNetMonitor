@@ -1,4 +1,4 @@
-# Taskbar Network Monitor
+# HAS NetMonitor
 
 A small always-on-top Windows widget that sits on the taskbar next to the tray and
 shows live download and upload speed as coloured bars, text, or both.
@@ -33,10 +33,10 @@ dotnet restore
 dotnet build
 ```
 
-Debug output lands in `bin/Debug/net11.0-windows/TaskbarNetMonitor.exe`.
+Debug output lands in `bin/Debug/net11.0-windows/HASNetMonitor.exe`.
 
-Always target `TaskbarNetMonitor.csproj` explicitly when you use `-o`/`--output` or
-publish. The folder also contains `TaskbarNetMonitor.slnx`, which includes the test
+Always target `HASNetMonitor.csproj` explicitly when you use `-o`/`--output` or
+publish. The folder also contains `HASNetMonitor.slnx`, which includes the test
 project, and an output path applied to the solution copies test assemblies into the
 app folder (`NETSDK1194`).
 
@@ -44,19 +44,19 @@ app folder (`NETSDK1194`).
 
 ```bash
 # from source (rebuilds if needed)
-dotnet run --project TaskbarNetMonitor.csproj
+dotnet run --project HASNetMonitor.csproj
 
 # the built exe
-./bin/Debug/net11.0-windows/TaskbarNetMonitor.exe
+./bin/Debug/net11.0-windows/HASNetMonitor.exe
 ```
 
-Only one instance runs: a second copy takes the `Local\TaskbarNetMonitor.Instance`
+Only one instance runs: a second copy takes the `Local\HASNetMonitor.Instance`
 mutex and exits quietly, so two widgets never fight over the same spot.
 
 Run it for a fixed time when you just want to look at it (seconds, capped at 600):
 
 ```bash
-./bin/Debug/net11.0-windows/TaskbarNetMonitor.exe --smoke 10
+./bin/Debug/net11.0-windows/HASNetMonitor.exe --smoke 10
 ```
 
 Right-click the widget for the menu. It has no taskbar button, so quit it from the menu
@@ -72,22 +72,22 @@ Run the test project directly for filtered or Release runs:
 
 ```bash
 # one class
-dotnet test tests/TaskbarNetMonitor.Tests/TaskbarNetMonitor.Tests.csproj \
+dotnet test tests/HASNetMonitor.Tests/HASNetMonitor.Tests.csproj \
   --filter "FullyQualifiedName~TaskbarGeometryTests"
 
 # one test
-dotnet test tests/TaskbarNetMonitor.Tests/TaskbarNetMonitor.Tests.csproj \
+dotnet test tests/HASNetMonitor.Tests/HASNetMonitor.Tests.csproj \
   --filter "FullyQualifiedName~NudgeMovesTheWidgetByExactlyTheGivenPixels"
 
 # only the target you ship
-dotnet test tests/TaskbarNetMonitor.Tests/TaskbarNetMonitor.Tests.csproj -f net48
+dotnet test tests/HASNetMonitor.Tests/HASNetMonitor.Tests.csproj -f net48
 
 # Release, without rebuilding
-dotnet test tests/TaskbarNetMonitor.Tests/TaskbarNetMonitor.Tests.csproj \
+dotnet test tests/HASNetMonitor.Tests/HASNetMonitor.Tests.csproj \
   -c Release --no-build
 
 # coverage (coverlet, writes coverage.cobertura.xml)
-dotnet test tests/TaskbarNetMonitor.Tests/TaskbarNetMonitor.Tests.csproj \
+dotnet test tests/HASNetMonitor.Tests/HASNetMonitor.Tests.csproj \
   --collect:"XPlat Code Coverage" --results-directory TestResults
 ```
 
@@ -114,14 +114,14 @@ Publish the project, not the folder:
 
 ```bash
 # The one to distribute: 239 KB exe, nothing to install on the target.
-dotnet publish TaskbarNetMonitor.csproj -c Release -f net48 -o publish
+dotnet publish HASNetMonitor.csproj -c Release -f net48 -o publish
 
 # Needs the .NET 11 Desktop Runtime on the target machine (~5 files).
-dotnet publish TaskbarNetMonitor.csproj -c Release -f net11.0-windows \
+dotnet publish HASNetMonitor.csproj -c Release -f net11.0-windows \
   -r win-x64 --self-contained false -o publish
 
 # One self-contained exe, nothing to install, but ~53 MB compressed / 115 MB plain.
-dotnet publish TaskbarNetMonitor.csproj -c Release -f net11.0-windows \
+dotnet publish HASNetMonitor.csproj -c Release -f net11.0-windows \
   -r win-x64 --self-contained true -p:PublishSingleFile=true -o publish
 ```
 
@@ -134,16 +134,16 @@ build targets .NET Framework instead.
 ## Shipping a small exe
 
 ```bash
-dotnet publish TaskbarNetMonitor.csproj -c Release -f net48 -o publish
+dotnet publish HASNetMonitor.csproj -c Release -f net48 -o publish
 ```
 
 Output:
 
 | File | Size | Needed? |
 |---|---|---|
-| `TaskbarNetMonitor.exe` | 239 KB | yes |
-| `TaskbarNetMonitor.exe.config` | 0.6 KB | yes, carries `DpiAwareness=PerMonitorV2` |
-| `TaskbarNetMonitor.pdb` | 36 KB | no, debug symbols |
+| `HASNetMonitor.exe` | 239 KB | yes |
+| `HASNetMonitor.exe.config` | 0.6 KB | yes, carries `DpiAwareness=PerMonitorV2` |
+| `HASNetMonitor.pdb` | 36 KB | no, debug symbols |
 
 Copy the two files together. Without the `.config` the app still runs, but the settings
 window is bitmap-stretched on a display scaled above 100%.
@@ -174,10 +174,10 @@ compatibility files, and the whole test suite runs on both.
 
 ```bash
 # prints a report, then exits 0 on PASS and 1 on FAIL
-./bin/Debug/net11.0-windows/TaskbarNetMonitor.exe --self-test
+./bin/Debug/net11.0-windows/HASNetMonitor.exe --self-test
 
 # or run it straight from source
-dotnet run --project TaskbarNetMonitor.csproj -- --self-test
+dotnet run --project HASNetMonitor.csproj -- --self-test
 ```
 
 `--self-test` also writes a rendered frame to
@@ -187,7 +187,7 @@ without touching your taskbar.
 If the widget misbehaves (hides, blinks, jumps), log what it sees:
 
 ```bash
-TNM_TRACE=trace.log ./bin/Debug/net11.0-windows/TaskbarNetMonitor.exe --smoke 10
+TNM_TRACE=trace.log ./bin/Debug/net11.0-windows/HASNetMonitor.exe --smoke 10
 ```
 
 `TNM_TRACE` takes a file path and records every show/hide/reorder decision with a
@@ -200,7 +200,7 @@ tracing off.
 Settings are stored per user at:
 
 ```
-%APPDATA%\TaskbarNetMonitor\config.json
+%APPDATA%\HASNetMonitor\config.json
 ```
 
 There is nothing to open and nothing to save by hand: the file is written whenever a
@@ -245,7 +245,7 @@ taskbar there are only a few pixels of vertical room, so a large `NudgeYPx` ther
 does little by design.
 
 Start with Windows writes `HKCU\Software\Microsoft\Windows\CurrentVersion\Run`,
-value `TaskbarNetMonitor`, pointing at the executable that is running. The config is the
+value `HASNetMonitor`, pointing at the executable that is running. The config is the
 source of truth: the key is re-applied on every start, which also repairs it after a
 Windows update removes it.
 
@@ -277,11 +277,24 @@ font size, text), **Position** (offset from tray, nudges with arrow buttons, res
 
 ## Version and identity
 
-`TaskbarNetMonitor.csproj` holds `<Version>`, `<Product>` and `<Authors>`, which the
-SDK turns into the exe's file properties. `Core/AppInfo.cs` reads the version back from
-the assembly (dropping any `+commit` build suffix) and holds the author and contact
-address, so the About box and the file on disk cannot disagree. To ship a new version,
-change `<Version>` and rebuild.
+`HASNetMonitor.csproj` holds `<Version>`, `<Product>`, `<AssemblyTitle>` and
+`<Authors>`, which the SDK turns into the exe's file properties. `Core/AppInfo.cs` reads
+the version back from the assembly (dropping any `+commit` build suffix) and holds the
+display name, author and contact address, so the About box, the tray tooltip and the
+file on disk cannot disagree. To ship a new version, change `<Version>` and rebuild.
+
+The product is **HAS NetMonitor**; the file is `HASNetMonitor.exe`, the project and
+solution are `HASNetMonitor.csproj` / `HASNetMonitor.slnx`, and the config lives in
+`%APPDATA%\HASNetMonitor`. The internal C# namespace is still `TaskbarNetMonitor`, since
+it never appears in the UI, the file name or the registry.
+
+Coming from a pre-rename build, three things move on their own or are cleaned up:
+
+| What | Effect |
+| --- | --- |
+| Config folder | The new build reads `%APPDATA%\HASNetMonitor`. An old `TaskbarNetMonitor` folder is left untouched and ignored, so settings do not carry over. |
+| Logon entry | `HKCU\...\Run` gets `HASNetMonitor`. Toggling **Start with Windows** also deletes the old `TaskbarNetMonitor` value, which would otherwise point at a file that no longer exists. |
+| Single instance | The mutex is `Local\HASNetMonitor.Instance`, so one old and one new build can run side by side once. |
 
 ## Project layout
 
@@ -298,15 +311,15 @@ Core/                      config, styles, fonts, geometry, traffic sampling
 Interop/                   Win32 declarations
 Rendering/                 layout and the widget renderer
 UI/                        layered window, taskbar widget, settings and About dialogs, host
-Assets/TaskbarNetMonitor.ico   app icon
+Assets/HASNetMonitor.ico   app icon
 tools/make_icon.py         regenerates the icon from the design grid
-tests/TaskbarNetMonitor.Tests  xUnit tests, run on both targets
+tests/HASNetMonitor.Tests  xUnit tests, run on both targets
   MathBridge.cs            net48 alias so the tests' Math.Clamp compiles
 ```
 
 ## Regenerating the icon
 
-`Assets/TaskbarNetMonitor.ico` is the single definition of the app mark: it drives the
+`Assets/HASNetMonitor.ico` is the single definition of the app mark: it drives the
 exe icon in Explorer, the notification-area (tray) icon, and the settings dialog. The
 file is also embedded as an assembly resource, so the tray and dialog load it without
 depending on where the exe lives — no surface draws its own copy, which is what keeps

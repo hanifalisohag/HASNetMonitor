@@ -9,7 +9,14 @@ namespace TaskbarNetMonitor.Core;
 /// </summary>
 internal static class StartupRegistration
 {
-    public const string ValueName = "TaskbarNetMonitor";
+    public const string ValueName = "HASNetMonitor";
+
+    /// <summary>
+    /// The entry name an earlier version used. Autostart entries are matched by name,
+    /// so a rename otherwise leaves the old one behind pointing at a file that no longer
+    /// exists; every enable and disable clears it.
+    /// </summary>
+    public const string LegacyValueName = "TaskbarNetMonitor";
 
     private const string RunKeyPath = @"Software\Microsoft\Windows\CurrentVersion\Run";
 
@@ -56,6 +63,9 @@ internal static class StartupRegistration
             {
                 return false;
             }
+
+            // A stale entry from the pre-rename install would try to start a missing exe.
+            key.DeleteValue(LegacyValueName, throwOnMissingValue: false);
 
             if (enabled)
             {
