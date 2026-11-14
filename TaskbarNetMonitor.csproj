@@ -2,24 +2,47 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net11.0-windows</TargetFramework>
+    <!-- Two targets, one source tree:
+         net11.0-windows - the development build and the tests.
+         net48            - ships as a single small exe that runs on a stock Windows
+                            install with nothing to download, because .NET Framework
+                            4.8 is a Windows component. -->
+    <TargetFrameworks>net11.0-windows;net48</TargetFrameworks>
     <UseWindowsForms>true</UseWindowsForms>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <LangVersion>latest</LangVersion>
     <RootNamespace>TaskbarNetMonitor</RootNamespace>
     <AssemblyName>TaskbarNetMonitor</AssemblyName>
-    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
-    <EnableWindowsTargeting>true</EnableWindowsTargeting>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
     <!-- The green/red activity mark shown in Explorer and Task Manager.
          Regenerate with: python tools/make_icon.py -->
     <ApplicationIcon>Assets\TaskbarNetMonitor.ico</ApplicationIcon>
   </PropertyGroup>
 
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net11.0-windows'">
+    <ApplicationHighDpiMode>PerMonitorV2</ApplicationHighDpiMode>
+    <EnableWindowsTargeting>true</EnableWindowsTargeting>
+  </PropertyGroup>
+
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net48'">
+    <!-- .NET Framework has no ApplicationHighDpiMode; App.config carries the same
+         setting (see App.config) so the settings dialog stays crisp when scaled. -->
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
+  </PropertyGroup>
+
   <ItemGroup>
-    <!-- Also embedded as a resource so the settings dialog can load the same mark
-         without depending on where the exe lives. -->
+    <!-- Also embedded as a resource so the settings dialog, the tray icon and the
+         exe icon are all the same mark, wherever the exe lives. -->
     <EmbeddedResource Include="Assets\TaskbarNetMonitor.ico" LogicalName="TaskbarNetMonitor.AppIcon.ico" />
+  </ItemGroup>
+
+  <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+    <!-- Lets the SDK build for .NET Framework without that developer pack installed. -->
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <!-- The in-box JSON serialiser used instead of System.Text.Json. -->
+    <Reference Include="System.Web.Extensions" />
   </ItemGroup>
 
   <ItemGroup>
@@ -31,6 +54,12 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="TaskbarNetMonitor.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Every file may use the shared helpers (Numeric, Elapsed, ConfigJson) without a
+         per-file using, identically on both targets. -->
+    <Using Include="TaskbarNetMonitor.Core" />
   </ItemGroup>
 
 </Project>

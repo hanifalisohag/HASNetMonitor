@@ -12,7 +12,15 @@ internal static class Program
     [STAThread]
     private static int Main(string[] args)
     {
+#if NETFRAMEWORK
+        // .NET Framework has no ApplicationConfiguration: the same two calls it
+        // makes are the classic WinForms start-up pair. DPI awareness comes from
+        // App.config for this target.
+        Application.EnableVisualStyles();
+        Application.SetCompatibleTextRenderingDefault(false);
+#else
         ApplicationConfiguration.Initialize();
+#endif
 
         if (args.Any(a => string.Equals(a, "--self-test", StringComparison.OrdinalIgnoreCase)))
         {

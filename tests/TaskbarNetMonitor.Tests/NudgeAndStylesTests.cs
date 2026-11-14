@@ -461,7 +461,7 @@ public class NudgeAndStylesTests
     private static void SetNumeric(SettingsForm form, string field, decimal value)
     {
         var control = (NumericUpDown)Field(form, field);
-        control.Value = Math.Clamp(value, control.Minimum, control.Maximum);
+        control.Value = Numeric.Clamp(value, control.Minimum, control.Maximum);
     }
 
     private static void SetCombo(SettingsForm form, string field, string key)

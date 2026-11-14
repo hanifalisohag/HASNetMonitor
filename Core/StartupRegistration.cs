@@ -16,7 +16,10 @@ internal static class StartupRegistration
     /// <summary>Quoted so paths containing spaces still launch correctly.</summary>
     public static string BuildCommand(string executablePath)
     {
-        ArgumentNullException.ThrowIfNull(executablePath);
+        if (executablePath is null)
+        {
+            throw new ArgumentNullException(nameof(executablePath));
+        }
 
         string trimmed = executablePath.Trim().Trim('"');
         if (trimmed.Length == 0)
@@ -56,7 +59,11 @@ internal static class StartupRegistration
 
             if (enabled)
             {
+#if NETFRAMEWORK
+                string path = executablePath ?? Compat.ProcessPath() ?? string.Empty;
+#else
                 string path = executablePath ?? Environment.ProcessPath ?? string.Empty;
+#endif
                 if (string.IsNullOrWhiteSpace(path))
                 {
                     return false;

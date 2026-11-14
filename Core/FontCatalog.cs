@@ -31,7 +31,7 @@ internal static class FontCatalog
     public static IReadOnlyList<string> InstalledFamilies => InstalledNames.Value;
 
     public static string Describe(string? family)
-        => string.IsNullOrWhiteSpace(family) ? "Automatic (taskbar font)" : family;
+        => string.IsNullOrWhiteSpace(family) ? "Automatic (taskbar font)" : family!;
 
     public static bool IsInstalled(string? family)
     {
@@ -40,7 +40,7 @@ internal static class FontCatalog
             return false;
         }
 
-        return InstalledLookup.Value.Contains(family.Trim());
+        return InstalledLookup.Value.Contains(family!.Trim());
     }
 
     /// <summary>

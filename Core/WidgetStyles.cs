@@ -53,7 +53,7 @@ internal static class WidgetStyles
     {
         if (!string.IsNullOrWhiteSpace(style))
         {
-            string trimmed = style.Trim();
+            string trimmed = style!.Trim();
             foreach (string candidate in All)
             {
                 if (string.Equals(candidate, trimmed, StringComparison.OrdinalIgnoreCase))
@@ -97,7 +97,7 @@ internal static class StackOrder
     {
         if (!string.IsNullOrWhiteSpace(order))
         {
-            string trimmed = order.Trim();
+            string trimmed = order!.Trim();
             foreach (string candidate in All)
             {
                 if (string.Equals(candidate, trimmed, StringComparison.OrdinalIgnoreCase))

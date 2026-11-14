@@ -159,6 +159,6 @@ internal static class TaskbarGeometry
             return min;
         }
 
-        return Math.Clamp(value, min, max);
+        return Numeric.Clamp(value, min, max);
     }
 }

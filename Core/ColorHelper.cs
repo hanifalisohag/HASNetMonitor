@@ -19,10 +19,14 @@ internal static class ColorHelper
             return false;
         }
 
-        string text = hex.Trim();
+        string text = hex!.Trim();
+#if NETFRAMEWORK
+        if (text.StartsWith("#", StringComparison.Ordinal))
+#else
         if (text.StartsWith('#'))
+#endif
         {
-            text = text[1..];
+            text = text.Substring(1);
         }
 
         if (text.Length != 6 || !ulong.TryParse(text, System.Globalization.NumberStyles.HexNumber, null, out ulong value))

@@ -78,6 +78,9 @@ dotnet test tests/TaskbarNetMonitor.Tests/TaskbarNetMonitor.Tests.csproj \
 dotnet test tests/TaskbarNetMonitor.Tests/TaskbarNetMonitor.Tests.csproj \
   --filter "FullyQualifiedName~NudgeMovesTheWidgetByExactlyTheGivenPixels"
 
+# only the target you ship
+dotnet test tests/TaskbarNetMonitor.Tests/TaskbarNetMonitor.Tests.csproj -f net48
+
 # Release, without rebuilding
 dotnet test tests/TaskbarNetMonitor.Tests/TaskbarNetMonitor.Tests.csproj \
   -c Release --no-build
@@ -87,7 +90,10 @@ dotnet test tests/TaskbarNetMonitor.Tests/TaskbarNetMonitor.Tests.csproj \
   --collect:"XPlat Code Coverage" --results-directory TestResults
 ```
 
-The suite currently runs 299 tests and takes about a second. Five of them drive real
+The suite is 319 tests per target, and it runs against **both** app targets, so the
+`net48` build that ships is held to exactly the same tests as the development build.
+Use `-f net48` to test only the shipping target — slower per test, but it exercises the
+.NET Framework code paths (config parsing, compatibility helpers). Five of them drive real
 windows (visibility, hit-testing, topmost repair). They are `SkippableFact`s and are
 reported as **skipped** when the session is locked or otherwise cannot show a window —
 that is expected, not a failure. Unlock and run again to exercise them.
@@ -106,18 +112,62 @@ Removes `bin/` and `obj/` artefacts for that configuration.
 Publish the project, not the folder:
 
 ```bash
-# Needs the .NET 11 runtime on the target machine. Smallest output, ~5 files.
-dotnet publish TaskbarNetMonitor.csproj -c Release -r win-x64 --self-contained false -o publish
+# The one to distribute: 239 KB exe, nothing to install on the target.
+dotnet publish TaskbarNetMonitor.csproj -c Release -f net48 -o publish
 
-# One self-contained exe, no runtime needed on the target machine (~115 MB).
-dotnet publish TaskbarNetMonitor.csproj -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true -o publish
+# Needs the .NET 11 Desktop Runtime on the target machine (~5 files).
+dotnet publish TaskbarNetMonitor.csproj -c Release -f net11.0-windows \
+  -r win-x64 --self-contained false -o publish
+
+# One self-contained exe, nothing to install, but ~53 MB compressed / 115 MB plain.
+dotnet publish TaskbarNetMonitor.csproj -c Release -f net11.0-windows \
+  -r win-x64 --self-contained true -p:PublishSingleFile=true -o publish
 ```
 
-Then `publish/TaskbarNetMonitor.exe` is the thing to hand out. Copy the whole `publish`
-folder for the framework-dependent build.
+See [Shipping a small exe](#shipping-a-small-exe) for what to hand out and why.
 
-Trimming (`-p:PublishTrimmed=true`) is not supported here: WinForms is not trim-compatible,
-so the resulting build is not trusted to run. A normal single-file publish is fine.
+Trimming (`-p:PublishTrimmed=true`) and NativeAOT are refused by the SDK for WinForms
+(`NETSDK1175`), so neither can shrink the modern build. That is the reason the small
+build targets .NET Framework instead.
+
+## Shipping a small exe
+
+```bash
+dotnet publish TaskbarNetMonitor.csproj -c Release -f net48 -o publish
+```
+
+Output:
+
+| File | Size | Needed? |
+|---|---|---|
+| `TaskbarNetMonitor.exe` | 239 KB | yes |
+| `TaskbarNetMonitor.exe.config` | 0.6 KB | yes, carries `DpiAwareness=PerMonitorV2` |
+| `TaskbarNetMonitor.pdb` | 36 KB | no, debug symbols |
+
+Copy the two files together. Without the `.config` the app still runs, but the settings
+window is bitmap-stretched on a display scaled above 100%.
+
+**Why .NET Framework.** No modern .NET is part of Windows: the .NET 11 Desktop Runtime is
+a separate installer, and a self-contained build carries ~50 MB of runtime. .NET Framework is
+an OS component, so a Framework exe contains only this app's code — hence 239 KB rather
+than 53 MB. The in-box versions are: Windows 8 → 4.5, 8.1 → 4.5.1, 10 1809 → 4.7.2,
+10 1903+ and 11 → 4.8. This build targets 4.8, so **Windows 10 1903+ and Windows 11** are
+supported; Windows 8/8.1 would need a 4.5 fallback that is not built.
+
+What the `net48` build does differently, so it stays small and dependency-free:
+
+- **Config JSON** uses the in-box `JavaScriptSerializer` instead of `System.Text.Json`,
+  which would drag several DLLs next to the exe. A small pre-pass strips `//` and `/* */`
+  comments and trailing commas first, so a config file stays interchangeable between the
+  two builds. `Core/ConfigJson.cs`.
+- **Compatibility helpers** in `Core/Compat.cs`, `Core/Numeric.cs` and `Core/Elapsed.cs`
+  stand in for `Math.Clamp`, `double.IsFinite`, `Stopwatch.GetElapsedTime`,
+  `Environment.ProcessPath` and `NativeLibrary`, which the Framework lacks.
+- **DPI awareness** comes from `App.config` (the Framework equivalent of the project's
+  `ApplicationHighDpiMode`), not from the modern runtime host.
+
+Both targets compile from the same sources with `#if NETFRAMEWORK` only inside those
+compatibility files, and the whole test suite runs on both.
 
 ## Diagnostics
 
@@ -228,13 +278,18 @@ font size, text), **Position** (offset from tray, nudges with arrow buttons, res
 ```
 Program.cs                 entry point, --self-test / --smoke, single-instance guard
 SelfTest.cs                environment and rendering checks behind --self-test
+App.config                 DPI awareness for the net48 build
 Core/                      config, styles, fonts, geometry, traffic sampling
+  ConfigJson.cs            config JSON, one backend per target
+  Compat.cs                net48 stand-ins for .NET 11 only APIs
+  Numeric.cs, Elapsed.cs   Math.Clamp / IsFinite / Stopwatch helpers, both targets
+  IsExternalInit.cs        net48 polyfill for `init` accessors
 Interop/                   Win32 declarations
 Rendering/                 layout and the widget renderer
 UI/                        layered window, taskbar widget, settings dialog, host
 Assets/TaskbarNetMonitor.ico   app icon
 tools/make_icon.py         regenerates the icon from the design grid
-tests/TaskbarNetMonitor.Tests  xUnit tests
+tests/TaskbarNetMonitor.Tests  xUnit tests, run on both targets
 ```
 
 ## Regenerating the icon

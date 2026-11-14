@@ -37,7 +37,7 @@ internal sealed class BarSmoother
             target = 0;
         }
 
-        target = Math.Clamp(target, 0, 1);
+        target = Numeric.Clamp(target, 0, 1);
 
         if (double.IsNaN(elapsedSeconds) || double.IsInfinity(elapsedSeconds) || elapsedSeconds <= 0)
         {
@@ -67,6 +67,6 @@ internal sealed class BarSmoother
 
         double decay = Math.Exp(-elapsedSeconds / ReleaseSeconds);
         _current = target + (_current - target) * decay;
-        return Math.Clamp(_current, 0, 1);
+        return Numeric.Clamp(_current, 0, 1);
     }
 }

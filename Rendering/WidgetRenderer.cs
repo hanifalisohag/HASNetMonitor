@@ -87,13 +87,13 @@ internal sealed class WidgetRenderer
 
         int maxHeightPx = maxHeight > 0 ? maxHeight : (int)Math.Round(48 * scale);
 
-        float points = (float)Math.Clamp(config.FontSizePt, MinimumFontSizePt, 20);
-        int barThickness = Math.Max(1, (int)Math.Round(Math.Clamp(config.BarThicknessPx, 1, MonitorConfig.MaxBarThicknessPx) * scale));
+        float points = (float)Numeric.Clamp(config.FontSizePt, MinimumFontSizePt, 20);
+        int barThickness = Math.Max(1, (int)Math.Round(Numeric.Clamp(config.BarThicknessPx, 1, MonitorConfig.MaxBarThicknessPx) * scale));
         int paddingX = Math.Max(2, (int)Math.Round(4 * scale));
         int paddingY = Math.Max(1, (int)Math.Round(1 * scale));
         int rowGap = Math.Max(1, (int)Math.Round(2 * scale));
         int barGap = Math.Max(0, (int)Math.Round(1 * scale));
-        int segmentGap = Math.Max(0, (int)Math.Round(Math.Clamp(config.SegmentGapPx, 0, MonitorConfig.MaxSegmentGapPx) * scale));
+        int segmentGap = Math.Max(0, (int)Math.Round(Numeric.Clamp(config.SegmentGapPx, 0, MonitorConfig.MaxSegmentGapPx) * scale));
         bool vertical = WidgetStyles.IsVertical(style);
 
         using var measureSurface = new Bitmap(1, 1, PixelFormat.Format32bppPArgb);
@@ -116,7 +116,7 @@ internal sealed class WidgetRenderer
                 // otherwise a short taskbar would leave them needlessly tiny.
                 int barHeight = config.ShowText
                     ? Math.Max(textBlock, Math.Max(barThickness * 2, (int)Math.Round(10 * scale)))
-                    : Math.Clamp(
+                    : Numeric.Clamp(
                         (int)Math.Round(14 * scale),
                         barThickness,
                         Math.Max(barThickness, maxHeightPx - (paddingY * 2)));
@@ -479,7 +479,7 @@ internal sealed class WidgetRenderer
         if (config.ShowBackdrop && config.BackdropOpacity > 0)
         {
             int radius = Math.Max(1, (int)Math.Round(5 * layout.Scale));
-            using var backdrop = new SolidBrush(theme.BackdropColor((byte)Math.Clamp(config.BackdropOpacity, 0, 255)));
+            using var backdrop = new SolidBrush(theme.BackdropColor((byte)Numeric.Clamp(config.BackdropOpacity, 0, 255)));
             using GraphicsPath path = CreateRoundedPath(new Rectangle(Point.Empty, layout.Size), radius);
             graphics.FillPath(backdrop, path);
         }

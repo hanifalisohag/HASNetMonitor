@@ -1,8 +1,12 @@
 """Generates Assets/TaskbarNetMonitor.ico: the app's green-download / red-upload mark."""
+import io
 import struct
 from PIL import Image, ImageDraw
 
 SIZES = [16, 20, 24, 32, 40, 48, 64, 128, 256]
+# From this size up the frame is stored as PNG. The small frames stay DIB for
+# compatibility, and compressing the big ones cuts the file most of the way down.
+PNG_FROM = 128
 DOWN = (46, 204, 113, 255)   # green, same as the tray icon
 UP = (231, 76, 60, 255)      # red, same as the tray icon
 STROKE = 1.8                 # stroke width on the 16-unit design grid
@@ -43,6 +47,7 @@ def render(edge):
 def bmp_entry(image, edge):
     """One ICO image as a 32bpp bottom-up DIB plus its 1bpp AND mask."""
     pixels = image.load()
+
     xor = bytearray()
     for y in range(edge - 1, -1, -1):
         for x in range(edge):
@@ -72,8 +77,24 @@ def bmp_entry(image, edge):
     return header + bytes(xor) + bytes(mask)
 
 
+def png_entry(image):
+    """One ICO image as PNG data.
+
+    PNG is the only compressed image an ICO can hold, and Explorer/Vista and later read
+    it for the 256px frame. The small frames stay DIB so every shell version can read
+    them, and the large ones - which are the bulk of the file - cost tens of bytes per
+    pixel rather than four.
+    """
+    buffer = io.BytesIO()
+    image.save(buffer, format="PNG", optimize=True)
+    return buffer.getvalue()
+
+
 def main():
-    images = [(edge, bmp_entry(render(edge), edge)) for edge in SIZES]
+    images = []
+    for edge in SIZES:
+        picture = render(edge)
+        images.append((edge, png_entry(picture) if edge >= PNG_FROM else bmp_entry(picture, edge)))
     offset = 6 + 16 * len(images)
     directory = bytearray(struct.pack("<HHH", 0, 1, len(images)))
     for edge, data in images:

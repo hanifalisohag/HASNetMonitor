@@ -40,7 +40,7 @@ internal static class ShellSurface
 
     /// <summary>Whether a window class name is one of the shell's own surfaces.</summary>
     internal static bool IsShellClassName(string? className)
-        => !string.IsNullOrEmpty(className) && ShellClassNames.Contains(className);
+        => !string.IsNullOrEmpty(className) && ShellClassNames.Contains(className!);
 
     /// <summary>
     /// Whether the window may be asked which virtual desktop is the active one. Only a
@@ -49,7 +49,7 @@ internal static class ShellSurface
     /// followed.
     /// </summary>
     internal static bool CanNameActiveDesktop(string? className)
-        => !string.IsNullOrEmpty(className) && !ShellClassNames.Contains(className);
+        => !string.IsNullOrEmpty(className) && !ShellClassNames.Contains(className!);
 
     /// <summary>
     /// Whether <paramref name="window"/> can name the active desktop: it exists, it is

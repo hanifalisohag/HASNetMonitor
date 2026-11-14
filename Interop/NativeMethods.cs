@@ -164,9 +164,7 @@ internal static class NativeMethods
     {
         try
         {
-            if (NativeLibrary.TryLoad("user32.dll", out IntPtr user32)
-                && NativeLibrary.TryGetExport(user32, "GetWindowBand", out IntPtr entry)
-                && entry != IntPtr.Zero)
+            if (TryResolveGetWindowBand(out IntPtr entry))
             {
                 return Marshal.GetDelegateForFunctionPointer<GetWindowBand>(entry);
             }
@@ -177,6 +175,25 @@ internal static class NativeMethods
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// Finds <c>GetWindowBand</c>, which only some builds of user32 export. .NET
+    /// Framework has no NativeLibrary, so each target loads it its own way.
+    /// </summary>
+    private static bool TryResolveGetWindowBand(out IntPtr entry)
+    {
+        entry = IntPtr.Zero;
+#if NETFRAMEWORK
+        return Core.Compat.TryGetExport("user32.dll", "GetWindowBand", out entry);
+#else
+        if (!NativeLibrary.TryLoad("user32.dll", out IntPtr user32))
+        {
+            return false;
+        }
+
+        return NativeLibrary.TryGetExport(user32, "GetWindowBand", out entry) && entry != IntPtr.Zero;
+#endif
     }
     [DllImport("dwmapi.dll")]
     internal static extern int DwmSetWindowAttribute(IntPtr hwnd, int attribute, ref int value, int size);
@@ -337,7 +354,7 @@ internal static class NativeMethods
     internal static extern IntPtr LoadCursor(IntPtr instance, IntPtr cursorName);
 
     /// <summary>IDC_ARROW as a resource name; see MAKEINTRESOURCE.</summary>
-    internal static readonly IntPtr IDC_ARROW = 32512;
+    internal static readonly IntPtr IDC_ARROW = new IntPtr(32512);
 
     internal const int WM_SETCURSOR = 0x0020;
 

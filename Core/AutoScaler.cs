@@ -73,11 +73,11 @@ internal sealed class AutoScaler
     {
         // Non-finite input comes from a broken counter or a division by a bogus
         // interval; treat it as "no traffic" instead of painting a full bar.
-        if (!double.IsFinite(bytesPerSecond) || bytesPerSecond <= 0 || !double.IsFinite(peak) || peak <= 0)
+        if (!Numeric.IsFinite(bytesPerSecond) || bytesPerSecond <= 0 || !Numeric.IsFinite(peak) || peak <= 0)
         {
             return 0;
         }
 
-        return Math.Clamp(bytesPerSecond / peak, 0, 1);
+        return Numeric.Clamp(bytesPerSecond / peak, 0, 1);
     }
 }

@@ -1,6 +1,12 @@
 using System.Drawing;
+#if NETFRAMEWORK
+// .NET Framework serialises with the in-box JavaScriptSerializer, whose ignore
+// attribute lives in System.Web.Script.Serialization.
+using JsonIgnoreAttribute = System.Web.Script.Serialization.ScriptIgnoreAttribute;
+#else
 using System.Text.Json;
 using System.Text.Json.Serialization;
+#endif
 
 namespace TaskbarNetMonitor.Core;
 
@@ -78,14 +84,6 @@ internal sealed class MonitorConfig
     /// </summary>
     public bool StartWithWindows { get; set; } = true;
 
-    private static readonly JsonSerializerOptions SerializerOptions = new()
-    {
-        WriteIndented = true,
-        PropertyNameCaseInsensitive = true,
-        ReadCommentHandling = JsonCommentHandling.Skip,
-        AllowTrailingCommas = true,
-    };
-
     public static string DefaultConfigPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "TaskbarNetMonitor",
@@ -104,7 +102,7 @@ internal sealed class MonitorConfig
     public Color UploadColor => ColorHelper.Parse(UploadColorHex, DefaultUpload);
 
     [JsonIgnore]
-    public int EffectiveRefreshIntervalMs => Math.Clamp(RefreshIntervalMs, MinRefreshIntervalMs, MaxRefreshIntervalMs);
+    public int EffectiveRefreshIntervalMs => Numeric.Clamp(RefreshIntervalMs, MinRefreshIntervalMs, MaxRefreshIntervalMs);
 
     [JsonIgnore]
     public double ManualPeakBytesPerSecond => Math.Max(MaxScaleMbps, 0.01) * 1_000_000 / 8.0;
@@ -141,7 +139,10 @@ internal sealed class MonitorConfig
     /// </summary>
     public void CopyFrom(MonitorConfig other)
     {
-        ArgumentNullException.ThrowIfNull(other);
+        if (other is null)
+        {
+            throw new ArgumentNullException(nameof(other));
+        }
 
         DownloadColorHex = other.DownloadColorHex;
         UploadColorHex = other.UploadColorHex;
@@ -178,32 +179,32 @@ internal sealed class MonitorConfig
         DownloadColorHex = ColorHelper.ToHex(ColorHelper.Parse(DownloadColorHex, DefaultDownload));
         UploadColorHex = ColorHelper.ToHex(ColorHelper.Parse(UploadColorHex, DefaultUpload));
 
-        RefreshIntervalMs = Math.Clamp(RefreshIntervalMs, MinRefreshIntervalMs, MaxRefreshIntervalMs);
+        RefreshIntervalMs = Numeric.Clamp(RefreshIntervalMs, MinRefreshIntervalMs, MaxRefreshIntervalMs);
 
-        OffsetFromTrayPx = Math.Clamp(OffsetFromTrayPx, 0, 64);
+        OffsetFromTrayPx = Numeric.Clamp(OffsetFromTrayPx, 0, 64);
 
         // A nudge is a fine adjustment, never a way to fling the widget off its taskbar:
         // placement clamps the result inside the bar as well.
-        NudgeXPx = Math.Clamp(NudgeXPx, -MaxNudgePx, MaxNudgePx);
-        NudgeYPx = Math.Clamp(NudgeYPx, -MaxNudgePx, MaxNudgePx);
+        NudgeXPx = Numeric.Clamp(NudgeXPx, -MaxNudgePx, MaxNudgePx);
+        NudgeYPx = Numeric.Clamp(NudgeYPx, -MaxNudgePx, MaxNudgePx);
 
         if (double.IsNaN(MaxScaleMbps) || double.IsInfinity(MaxScaleMbps))
         {
             MaxScaleMbps = 100;
         }
 
-        MaxScaleMbps = Math.Clamp(MaxScaleMbps, 0.01, 100_000);
+        MaxScaleMbps = Numeric.Clamp(MaxScaleMbps, 0.01, 100_000);
 
-        BarThicknessPx = Math.Clamp(BarThicknessPx, 1, MaxBarThicknessPx);
-        SegmentGapPx = Math.Clamp(SegmentGapPx, 0, MaxSegmentGapPx);
-        BackdropOpacity = Math.Clamp(BackdropOpacity, 0, 255);
+        BarThicknessPx = Numeric.Clamp(BarThicknessPx, 1, MaxBarThicknessPx);
+        SegmentGapPx = Numeric.Clamp(SegmentGapPx, 0, MaxSegmentGapPx);
+        BackdropOpacity = Numeric.Clamp(BackdropOpacity, 0, 255);
 
         if (double.IsNaN(FontSizePt) || double.IsInfinity(FontSizePt))
         {
             FontSizePt = 9;
         }
 
-        FontSizePt = Math.Clamp(FontSizePt, MinFontSizePt, MaxFontSizePt);
+        FontSizePt = Numeric.Clamp(FontSizePt, MinFontSizePt, MaxFontSizePt);
 
         Style = WidgetStyles.Normalize(Style);
         SortOrder = StackOrder.Normalize(SortOrder);
@@ -214,7 +215,7 @@ internal sealed class MonitorConfig
         return this;
     }
 
-    public string ToJson() => JsonSerializer.Serialize(this, SerializerOptions);
+    public string ToJson() => ConfigJson.Serialize(this);
 
     public static MonitorConfig FromJson(string? json)
     {
@@ -225,15 +226,12 @@ internal sealed class MonitorConfig
 
         try
         {
-            var parsed = JsonSerializer.Deserialize<MonitorConfig>(json, SerializerOptions);
-            return (parsed ?? new MonitorConfig()).Normalize();
+            return ConfigJson.Deserialize(json!).Normalize();
         }
-        catch (JsonException)
+        catch (ConfigFormatException)
         {
-            return new MonitorConfig().Normalize();
-        }
-        catch (NotSupportedException)
-        {
+            // A hand-edited file that no longer parses falls back to defaults rather
+            // than stopping the app from starting.
             return new MonitorConfig().Normalize();
         }
     }

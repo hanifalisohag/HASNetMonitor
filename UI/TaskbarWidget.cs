@@ -290,7 +290,7 @@ internal sealed class TaskbarWidget : LayeredWindow
     /// </summary>
     private void FollowDesktopIfStranded(bool shellBandRaised)
     {
-        if (Stopwatch.GetElapsedTime(_lastDesktopCheckTicks) < DesktopCheckInterval)
+        if (Elapsed.Since(_lastDesktopCheckTicks) < DesktopCheckInterval)
             return;
 
         _lastDesktopCheckTicks = Stopwatch.GetTimestamp();
@@ -314,7 +314,7 @@ internal sealed class TaskbarWidget : LayeredWindow
         // A rejected move is also the shell's transition. Waiting longer after each one
         // keeps a stubborn desktop from turning into a move every half second.
         if (_desktopFollowFailures > 0
-            && Stopwatch.GetElapsedTime(_lastDesktopFollowTicks)
+            && Elapsed.Since(_lastDesktopFollowTicks)
                 < RepairIntervalFor(_desktopFollowFailures))
             return;
 
@@ -554,7 +554,7 @@ internal sealed class TaskbarWidget : LayeredWindow
         bool peekActive = !buried && IsBehindDesktopPeek(taskbar);
         if (!NeedsRecovery(isShown: true, isOnTop: !buried && !peekActive, coveredByTaskbar: buried, peekActive: peekActive))
         {
-            if (Stopwatch.GetElapsedTime(_lastRepairTicks) >= HealthyHold)
+            if (Elapsed.Since(_lastRepairTicks) >= HealthyHold)
             {
                 _repairAttempts = 0;
             }
@@ -567,13 +567,13 @@ internal sealed class TaskbarWidget : LayeredWindow
         // shell's own doing, not a losing fight, so it must not be delayed by a backoff
         // the previous fight left behind.
         bool afterBandReturn = _bandDroppedTicks != 0
-            && Stopwatch.GetElapsedTime(_bandDroppedTicks) < BandReturnGrace;
+            && Elapsed.Since(_bandDroppedTicks) < BandReturnGrace;
         if (afterBandReturn)
         {
             _repairAttempts = 0;
         }
 
-        if (!ShouldRecoverNow(Stopwatch.GetElapsedTime(_lastRepairTicks), RepairIntervalFor(_repairAttempts)))
+        if (!ShouldRecoverNow(Elapsed.Since(_lastRepairTicks), RepairIntervalFor(_repairAttempts)))
         {
             RepairSurface(now);
             return;
@@ -621,7 +621,7 @@ internal sealed class TaskbarWidget : LayeredWindow
         {
             _lastPresentTicks = now;
         }
-        else if (ShouldRepresentNow(Stopwatch.GetElapsedTime(_lastPresentTicks), RepresentInterval))
+        else if (ShouldRepresentNow(Elapsed.Since(_lastPresentTicks), RepresentInterval))
         {
             _lastPresentTicks = now;
             Represent();

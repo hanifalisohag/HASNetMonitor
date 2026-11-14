@@ -51,7 +51,10 @@ internal sealed class SettingsForm : Form
 
     public SettingsForm(MonitorConfig config)
     {
-        ArgumentNullException.ThrowIfNull(config);
+        if (config is null)
+        {
+            throw new ArgumentNullException(nameof(config));
+        }
 
         Text = "Taskbar Network Monitor \u2013 Settings";
 
@@ -83,7 +86,7 @@ internal sealed class SettingsForm : Form
             Minimum = MonitorConfig.MinRefreshIntervalMs,
             Maximum = MonitorConfig.MaxRefreshIntervalMs,
             Increment = 250,
-            Value = Math.Clamp(config.RefreshIntervalMs, MonitorConfig.MinRefreshIntervalMs, MonitorConfig.MaxRefreshIntervalMs),
+            Value = Numeric.Clamp(config.RefreshIntervalMs, MonitorConfig.MinRefreshIntervalMs, MonitorConfig.MaxRefreshIntervalMs),
             Width = 90,
         };
 
@@ -95,7 +98,7 @@ internal sealed class SettingsForm : Form
             Maximum = 100000m,
             DecimalPlaces = 1,
             Increment = 10m,
-            Value = (decimal)Math.Clamp(config.MaxScaleMbps, 0.1, 100000),
+            Value = (decimal)Numeric.Clamp(config.MaxScaleMbps, 0.1, 100000),
             Width = 90,
         };
 
@@ -105,7 +108,7 @@ internal sealed class SettingsForm : Form
         {
             Minimum = 1,
             Maximum = MonitorConfig.MaxBarThicknessPx,
-            Value = Math.Clamp(config.BarThicknessPx, 1, MonitorConfig.MaxBarThicknessPx),
+            Value = Numeric.Clamp(config.BarThicknessPx, 1, MonitorConfig.MaxBarThicknessPx),
             Width = 60,
         };
 
@@ -113,7 +116,7 @@ internal sealed class SettingsForm : Form
         {
             Minimum = 0,
             Maximum = MonitorConfig.MaxSegmentGapPx,
-            Value = Math.Clamp(config.SegmentGapPx, 0, MonitorConfig.MaxSegmentGapPx),
+            Value = Numeric.Clamp(config.SegmentGapPx, 0, MonitorConfig.MaxSegmentGapPx),
             Width = 60,
         };
 
@@ -124,7 +127,7 @@ internal sealed class SettingsForm : Form
         {
             Minimum = 0,
             Maximum = 64,
-            Value = Math.Clamp(config.OffsetFromTrayPx, 0, 64),
+            Value = Numeric.Clamp(config.OffsetFromTrayPx, 0, 64),
             Width = 60,
         };
 
@@ -146,7 +149,7 @@ internal sealed class SettingsForm : Form
             Maximum = 20m,
             DecimalPlaces = 1,
             Increment = 0.5m,
-            Value = (decimal)Math.Clamp(config.FontSizePt, 6, 20),
+            Value = (decimal)Numeric.Clamp(config.FontSizePt, 6, 20),
             Width = 60,
         };
 
@@ -156,7 +159,7 @@ internal sealed class SettingsForm : Form
         {
             Minimum = 0,
             Maximum = 255,
-            Value = Math.Clamp(config.BackdropOpacity, 0, 255),
+            Value = Numeric.Clamp(config.BackdropOpacity, 0, 255),
             Width = 60,
         };
 
@@ -426,7 +429,7 @@ internal sealed class SettingsForm : Form
     {
         Minimum = -MonitorConfig.MaxNudgePx,
         Maximum = MonitorConfig.MaxNudgePx,
-        Value = Math.Clamp(value, -MonitorConfig.MaxNudgePx, MonitorConfig.MaxNudgePx),
+        Value = Numeric.Clamp(value, -MonitorConfig.MaxNudgePx, MonitorConfig.MaxNudgePx),
         Width = 60,
     };
 
@@ -440,7 +443,7 @@ internal sealed class SettingsForm : Form
         new ToolTip().SetToolTip(button, tooltip);
         button.Click += (_, _) =>
         {
-            decimal next = Math.Clamp(target.Value + delta, target.Minimum, target.Maximum);
+            decimal next = Numeric.Clamp(target.Value + delta, target.Minimum, target.Maximum);
             target.Value = next;
         };
         return button;

@@ -596,16 +596,16 @@ internal class LayeredWindow : NativeWindow, IDisposable
                 // pointer, which is why hovering the widget showed a spinning
                 // "working" icon. It is an ordinary clickable taskbar item.
                 NativeMethods.SetCursor(NativeMethods.LoadCursor(IntPtr.Zero, NativeMethods.IDC_ARROW));
-                m.Result = 1;
+                m.Result = (IntPtr)1;
                 return;
 
             case WmNcHitTest:
                 // Whole widget rectangle accepts clicks, including the transparent gaps.
-                m.Result = HtClient;
+                m.Result = (IntPtr)HtClient;
                 return;
 
             case WmMouseActivate:
-                m.Result = MaNoActivate;
+                m.Result = (IntPtr)MaNoActivate;
                 return;
         }
 

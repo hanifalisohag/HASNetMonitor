@@ -109,8 +109,8 @@ internal sealed class MonitorHost : ApplicationContext
             int offsetY = dy;
             item.Click += (_, _) => ApplyLook(config =>
             {
-                config.NudgeXPx = Math.Clamp(config.NudgeXPx + offsetX, -MonitorConfig.MaxNudgePx, MonitorConfig.MaxNudgePx);
-                config.NudgeYPx = Math.Clamp(config.NudgeYPx + offsetY, -MonitorConfig.MaxNudgePx, MonitorConfig.MaxNudgePx);
+                config.NudgeXPx = Numeric.Clamp(config.NudgeXPx + offsetX, -MonitorConfig.MaxNudgePx, MonitorConfig.MaxNudgePx);
+                config.NudgeYPx = Numeric.Clamp(config.NudgeYPx + offsetY, -MonitorConfig.MaxNudgePx, MonitorConfig.MaxNudgePx);
             });
             position.DropDownItems.Add(item);
         }
@@ -162,7 +162,7 @@ internal sealed class MonitorHost : ApplicationContext
                     "order:DownloadFirst" => _config.SortOrder == StackOrder.DownloadFirst,
                     "order:UploadFirst" => _config.SortOrder == StackOrder.UploadFirst,
                     string tag => tag.StartsWith("style:", StringComparison.Ordinal)
-                        && _config.Style == tag["style:".Length..],
+                        && _config.Style == tag.Substring("style:".Length),
                     _ => false,
                 };
             }
