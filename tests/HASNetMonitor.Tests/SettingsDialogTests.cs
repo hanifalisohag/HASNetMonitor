@@ -1,9 +1,9 @@
 using System.Drawing;
-using TaskbarNetMonitor.Core;
-using TaskbarNetMonitor.UI;
+using HASNetMonitor.Core;
+using HASNetMonitor.UI;
 using Xunit;
 
-namespace TaskbarNetMonitor.Tests;
+namespace HASNetMonitor.Tests;
 
 /// <summary>
 /// The settings dialog must actually offer the new look options: a control missing from

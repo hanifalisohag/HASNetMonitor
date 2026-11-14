@@ -2,9 +2,9 @@ using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Drawing.Text;
-using TaskbarNetMonitor.Core;
+using HASNetMonitor.Core;
 
-namespace TaskbarNetMonitor.Rendering;
+namespace HASNetMonitor.Rendering;
 
 /// <summary>Everything needed to draw one frame.</summary>
 internal readonly record struct WidgetVisual(

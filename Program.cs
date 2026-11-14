@@ -1,9 +1,9 @@
 using System.Text;
-using TaskbarNetMonitor.Core;
-using TaskbarNetMonitor.Interop;
-using TaskbarNetMonitor.UI;
+using HASNetMonitor.Core;
+using HASNetMonitor.Interop;
+using HASNetMonitor.UI;
 
-namespace TaskbarNetMonitor;
+namespace HASNetMonitor;
 
 internal static class Program
 {

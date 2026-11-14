@@ -1,6 +1,6 @@
-using TaskbarNetMonitor.UI;
+using HASNetMonitor.UI;
 
-namespace TaskbarNetMonitor.Tests;
+namespace HASNetMonitor.Tests;
 
 /// <summary>
 /// When Windows puts something over the widget without hiding it or sending a

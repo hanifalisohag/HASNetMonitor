@@ -1,8 +1,8 @@
 using System.Runtime.InteropServices;
-using TaskbarNetMonitor.Core;
-using TaskbarNetMonitor.Interop;
+using HASNetMonitor.Core;
+using HASNetMonitor.Interop;
 
-namespace TaskbarNetMonitor.UI;
+namespace HASNetMonitor.UI;
 
 /// <summary>Where the taskbar is right now, and everything derived from it.</summary>
 internal readonly record struct TaskbarSnapshot(

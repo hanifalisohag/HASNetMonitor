@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
-using TaskbarNetMonitor.Interop;
+using HASNetMonitor.Interop;
 
-namespace TaskbarNetMonitor.UI;
+namespace HASNetMonitor.UI;
 
 /// <summary>Uses only the public shell interface; no build-specific desktop pinning APIs.</summary>
 internal sealed class DesktopPresence : IDisposable

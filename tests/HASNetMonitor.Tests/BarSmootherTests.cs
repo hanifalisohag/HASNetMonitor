@@ -1,9 +1,9 @@
 using System.Drawing;
-using TaskbarNetMonitor.Core;
-using TaskbarNetMonitor.Rendering;
+using HASNetMonitor.Core;
+using HASNetMonitor.Rendering;
 using Xunit;
 
-namespace TaskbarNetMonitor.Tests;
+namespace HASNetMonitor.Tests;
 
 /// <summary>
 /// Bar smoothing. Without it the auto-scaled bar slams from full width to the

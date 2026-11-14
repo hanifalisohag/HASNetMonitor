@@ -1,4 +1,4 @@
-namespace TaskbarNetMonitor.Core;
+namespace HASNetMonitor.Core;
 
 /// <summary>
 /// Keeps a reference "full scale" rate so a small bar still shows movement on a

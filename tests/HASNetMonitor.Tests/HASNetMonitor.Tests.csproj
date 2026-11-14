@@ -41,12 +41,12 @@
   <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
     <!-- The test sources call Math.Clamp, which .NET Framework's System.Math lacks.
          Aliasing Math here lets those files compile unchanged for both targets. -->
-    <Using Include="TaskbarNetMonitor.Tests.MathBridge" Alias="Math" />
+    <Using Include="HASNetMonitor.Tests.MathBridge" Alias="Math" />
   </ItemGroup>
 
   <ItemGroup>
     <Using Include="Xunit" />
-    <Using Include="TaskbarNetMonitor.Core" />
+    <Using Include="HASNetMonitor.Core" />
   </ItemGroup>
 
   <ItemGroup>

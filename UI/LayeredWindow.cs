@@ -1,9 +1,9 @@
 using System.Drawing;
 using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
-using TaskbarNetMonitor.Interop;
+using HASNetMonitor.Interop;
 
-namespace TaskbarNetMonitor.UI;
+namespace HASNetMonitor.UI;
 
 /// <summary>
 /// A popup window whose content is presented exclusively through

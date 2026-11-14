@@ -1,10 +1,10 @@
 using System.Drawing;
 using System.Reflection;
-using TaskbarNetMonitor.Core;
-using TaskbarNetMonitor.Rendering;
-using TaskbarNetMonitor.UI;
+using HASNetMonitor.Core;
+using HASNetMonitor.Rendering;
+using HASNetMonitor.UI;
 
-namespace TaskbarNetMonitor.Tests;
+namespace HASNetMonitor.Tests;
 
 /// <summary>
 /// Nudge positioning, the extra styles and the segment gap. Placement is pure maths,

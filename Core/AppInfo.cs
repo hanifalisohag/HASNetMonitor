@@ -1,6 +1,6 @@
 using System.Reflection;
 
-namespace TaskbarNetMonitor.Core;
+namespace HASNetMonitor.Core;
 
 /// <summary>
 /// The product identity: what the app calls itself, who wrote it, where to write to and

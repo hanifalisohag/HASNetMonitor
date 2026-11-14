@@ -1,7 +1,7 @@
 using System.Drawing;
 using System.Reflection;
 
-namespace TaskbarNetMonitor.UI;
+namespace HASNetMonitor.UI;
 
 /// <summary>
 /// The application mark: the green-download / red-upload arrows from

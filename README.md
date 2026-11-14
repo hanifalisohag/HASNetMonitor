@@ -284,16 +284,15 @@ display name, author and contact address, so the About box, the tray tooltip and
 file on disk cannot disagree. To ship a new version, change `<Version>` and rebuild.
 
 The product is **HAS NetMonitor**; the file is `HASNetMonitor.exe`, the project and
-solution are `HASNetMonitor.csproj` / `HASNetMonitor.slnx`, and the config lives in
-`%APPDATA%\HASNetMonitor`. The internal C# namespace is still `TaskbarNetMonitor`, since
-it never appears in the UI, the file name or the registry.
+solution are `HASNetMonitor.csproj` / `HASNetMonitor.slnx`, the C# root namespace is
+`HASNetMonitor`, and the config lives in `%APPDATA%\HASNetMonitor`.
 
-Coming from a pre-rename build, three things move on their own or are cleaned up:
+Upgrading from a build under the previous name:
 
 | What | Effect |
 | --- | --- |
-| Config folder | The new build reads `%APPDATA%\HASNetMonitor`. An old `TaskbarNetMonitor` folder is left untouched and ignored, so settings do not carry over. |
-| Logon entry | `HKCU\...\Run` gets `HASNetMonitor`. Toggling **Start with Windows** also deletes the old `TaskbarNetMonitor` value, which would otherwise point at a file that no longer exists. |
+| Config folder | The build reads `%APPDATA%\HASNetMonitor`. Settings saved by the old build are not read, so a fresh install starts from defaults. |
+| Logon entry | `HKCU\...\Run` gets `HASNetMonitor`. An entry left by the old build is not touched; if you enabled **Start with Windows** before, delete that old `Run` value once by hand. |
 | Single instance | The mutex is `Local\HASNetMonitor.Instance`, so one old and one new build can run side by side once. |
 
 ## Project layout

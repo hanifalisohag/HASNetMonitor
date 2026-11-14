@@ -1,9 +1,9 @@
 using System.Drawing;
 using System.Drawing.Imaging;
-using TaskbarNetMonitor.Interop;
-using TaskbarNetMonitor.UI;
+using HASNetMonitor.Interop;
+using HASNetMonitor.UI;
 
-namespace TaskbarNetMonitor.Tests;
+namespace HASNetMonitor.Tests;
 
 /// <summary>
 /// The bug these tests pin down: the widget used to treat "some window is above it and

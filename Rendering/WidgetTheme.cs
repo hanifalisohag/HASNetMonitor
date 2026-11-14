@@ -1,6 +1,6 @@
 using Microsoft.Win32;
 
-namespace TaskbarNetMonitor.Rendering;
+namespace HASNetMonitor.Rendering;
 
 /// <summary>
 /// Whether the taskbar is currently the dark or the light variant. The taskbar

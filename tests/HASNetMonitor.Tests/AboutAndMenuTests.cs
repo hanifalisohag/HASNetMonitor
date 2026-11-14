@@ -1,8 +1,8 @@
 using System.Reflection;
-using TaskbarNetMonitor.Core;
-using TaskbarNetMonitor.UI;
+using HASNetMonitor.Core;
+using HASNetMonitor.UI;
 
-namespace TaskbarNetMonitor.Tests;
+namespace HASNetMonitor.Tests;
 
 /// <summary>
 /// The identity shown to the user (name, version, author, contact) and the tray menu:
@@ -34,21 +34,64 @@ public class AboutAndMenuTests : IDisposable
         Assert.Contains("<AssemblyName>HASNetMonitor</AssemblyName>", project, StringComparison.Ordinal);
         Assert.Contains($"<Product>{AppInfo.Name}</Product>", project, StringComparison.Ordinal);
         Assert.Contains($"<AssemblyTitle>{AppInfo.Name}</AssemblyTitle>", project, StringComparison.Ordinal);
-        Assert.False(project.IndexOf("TaskbarNetMonitor.ico", StringComparison.Ordinal) >= 0,
-            "the project still points at the old icon file");
+        Assert.Contains("<RootNamespace>HASNetMonitor</RootNamespace>", project, StringComparison.Ordinal);
+
+        // The icon the project embeds is the file in Assets, under the product's name.
+        Assert.Contains("Assets\\HASNetMonitor.ico", project, StringComparison.Ordinal);
 
         // The exe, the autostart value and the config folder are the names the OS sees.
         Assert.Equal("HASNetMonitor", StartupRegistration.ValueName);
-        Assert.Equal("TaskbarNetMonitor", StartupRegistration.LegacyValueName);
         Assert.True(
             MonitorConfig.DefaultConfigPath.EndsWith(
                 "HASNetMonitor" + Path.DirectorySeparatorChar + "config.json",
                 StringComparison.OrdinalIgnoreCase),
             MonitorConfig.DefaultConfigPath);
+    }
 
-        // The one place the old name is still allowed to appear, and what it is for.
-        string startup = SourceText.Read("Core", "StartupRegistration.cs");
-        Assert.Contains("key.DeleteValue(LegacyValueName", startup, StringComparison.Ordinal);
+    /// <summary>
+    /// The namespace rename, asserted without spelling the retired name: every source file
+    /// must declare a namespace under the product's own root, so a reintroduced old one or a
+    /// half-finished rename fails here.
+    /// </summary>
+    [Fact]
+    public void EverySourceFileSitsUnderTheProductNamespace()
+    {
+        const string Root = "HASNetMonitor";
+        Assert.Equal(Root, typeof(AppInfo).Namespace!.Split('.')[0]);
+        Assert.Equal(Root + ".Core", typeof(AppInfo).Namespace);
+
+        var problems = new List<string>();
+        var polyfills = new HashSet<string>(StringComparer.Ordinal) { "IsExternalInit.cs", "NetFrameworkPolyfills.cs" };
+        int declared = 0;
+        foreach (string file in SourceText.AllSources())
+        {
+            string name = Path.GetFileName(file);
+            foreach (string line in File.ReadAllLines(file))
+            {
+                string trimmed = line.TrimStart();
+                if (!trimmed.StartsWith("namespace ", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                declared++;
+                string ns = trimmed.Substring("namespace ".Length).Trim().TrimEnd(';', '{').Trim();
+
+                // A polyfill has to sit in the framework namespace it stands in for.
+                if (polyfills.Contains(name) && ns.StartsWith("System", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                if (!ns.StartsWith(Root, StringComparison.Ordinal))
+                {
+                    problems.Add($"{name} declares {ns}");
+                }
+            }
+        }
+
+        Assert.True(declared > 40, $"only {declared} namespaces found; the scan is not seeing the tree");
+        Assert.Empty(problems);
     }
 
     [Fact]

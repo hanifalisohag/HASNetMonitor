@@ -1,7 +1,7 @@
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 
-namespace TaskbarNetMonitor.UI;
+namespace HASNetMonitor.UI;
 
 /// <summary>Temporary diagnostics for tracking hide/show and blink churn. Delete when done.</summary>
 internal static class FrameTrace

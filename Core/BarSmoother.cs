@@ -1,4 +1,4 @@
-namespace TaskbarNetMonitor.Core;
+namespace HASNetMonitor.Core;
 
 /// <summary>
 /// Keeps a bar from jumping. The auto-scaled ratio follows the peak, and after a

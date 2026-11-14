@@ -1,8 +1,8 @@
 using System.Drawing;
-using TaskbarNetMonitor.Core;
-using TaskbarNetMonitor.Rendering;
+using HASNetMonitor.Core;
+using HASNetMonitor.Rendering;
 
-namespace TaskbarNetMonitor.Tests;
+namespace HASNetMonitor.Tests;
 
 public class WidgetRenderingTests
 {

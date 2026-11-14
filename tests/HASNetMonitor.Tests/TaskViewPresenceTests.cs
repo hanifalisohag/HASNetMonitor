@@ -1,8 +1,8 @@
 using System.Runtime.InteropServices;
-using TaskbarNetMonitor.Interop;
-using TaskbarNetMonitor.UI;
+using HASNetMonitor.Interop;
+using HASNetMonitor.UI;
 
-namespace TaskbarNetMonitor.Tests;
+namespace HASNetMonitor.Tests;
 
 /// <summary>
 /// The Win+Tab bug these tests pin down: pressing Win+Tab opens Task View, and the

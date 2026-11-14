@@ -1,8 +1,8 @@
 using System.Drawing;
 using System.Text.Json;
-using TaskbarNetMonitor.Core;
+using HASNetMonitor.Core;
 
-namespace TaskbarNetMonitor.Tests;
+namespace HASNetMonitor.Tests;
 
 public class MonitorConfigTests : IDisposable
 {

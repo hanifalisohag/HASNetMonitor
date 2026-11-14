@@ -1,8 +1,8 @@
-using TaskbarNetMonitor.Core;
-using TaskbarNetMonitor.Rendering;
-using TaskbarNetMonitor.UI;
+using HASNetMonitor.Core;
+using HASNetMonitor.Rendering;
+using HASNetMonitor.UI;
 
-namespace TaskbarNetMonitor.Tests;
+namespace HASNetMonitor.Tests;
 
 /// <summary>
 /// The flicker rule: only the frames that actually look different may be pushed.

@@ -1,10 +1,10 @@
 using System.Drawing;
-using TaskbarNetMonitor.Core;
-using TaskbarNetMonitor.Interop;
-using TaskbarNetMonitor.Rendering;
-using TaskbarNetMonitor.UI;
+using HASNetMonitor.Core;
+using HASNetMonitor.Interop;
+using HASNetMonitor.Rendering;
+using HASNetMonitor.UI;
 
-namespace TaskbarNetMonitor;
+namespace HASNetMonitor;
 
 /// <summary>
 /// Headless smoke test of the pieces that can be exercised without a screen:

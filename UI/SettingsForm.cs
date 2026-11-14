@@ -1,9 +1,9 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
-using TaskbarNetMonitor.Core;
-using TaskbarNetMonitor.Rendering;
+using HASNetMonitor.Core;
+using HASNetMonitor.Rendering;
 
-namespace TaskbarNetMonitor.UI;
+namespace HASNetMonitor.UI;
 
 /// <summary>
 /// Settings dialog: look (style, stacking order, font, caps, glow), colours,

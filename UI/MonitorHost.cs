@@ -1,8 +1,8 @@
 using System.Drawing;
-using TaskbarNetMonitor.Core;
-using TaskbarNetMonitor.Interop;
+using HASNetMonitor.Core;
+using HASNetMonitor.Interop;
 
-namespace TaskbarNetMonitor.UI;
+namespace HASNetMonitor.UI;
 
 /// <summary>
 /// Owns the widget, the tray icon and the menu. Runs for the whole session; nothing

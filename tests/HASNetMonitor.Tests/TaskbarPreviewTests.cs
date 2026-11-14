@@ -1,9 +1,9 @@
 using System.Drawing;
-using TaskbarNetMonitor.Core;
-using TaskbarNetMonitor.Rendering;
+using HASNetMonitor.Core;
+using HASNetMonitor.Rendering;
 using Xunit;
 
-namespace TaskbarNetMonitor.Tests;
+namespace HASNetMonitor.Tests;
 
 /// <summary>
 /// The settings preview must show every option the dialog offers, and must never be

@@ -1,8 +1,8 @@
 using System.Drawing;
 using System.Drawing.Imaging;
-using TaskbarNetMonitor.UI;
+using HASNetMonitor.UI;
 
-namespace TaskbarNetMonitor.Tests;
+namespace HASNetMonitor.Tests;
 
 /// <summary>
 /// The tray mark, the exe icon and the settings-dialog icon must be one drawing. They

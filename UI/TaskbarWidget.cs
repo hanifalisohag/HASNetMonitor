@@ -1,10 +1,10 @@
 using System.Diagnostics;
 using System.Drawing;
-using TaskbarNetMonitor.Core;
-using TaskbarNetMonitor.Interop;
-using TaskbarNetMonitor.Rendering;
+using HASNetMonitor.Core;
+using HASNetMonitor.Interop;
+using HASNetMonitor.Rendering;
 
-namespace TaskbarNetMonitor.UI;
+namespace HASNetMonitor.UI;
 
 /// <summary>
 /// The taskbar widget itself: samples the counters on a background thread, then

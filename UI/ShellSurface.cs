@@ -1,6 +1,6 @@
-using TaskbarNetMonitor.Interop;
+using HASNetMonitor.Interop;
 
-namespace TaskbarNetMonitor.UI;
+namespace HASNetMonitor.UI;
 
 /// <summary>
 /// Which windows belong to the shell itself. Two rules depend on this:

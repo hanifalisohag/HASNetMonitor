@@ -1,8 +1,8 @@
 using System.Drawing;
 using System.Text.RegularExpressions;
-using TaskbarNetMonitor.UI;
+using HASNetMonitor.UI;
 
-namespace TaskbarNetMonitor.Tests;
+namespace HASNetMonitor.Tests;
 
 /// <summary>
 /// The application mark has to exist as a real multi-size .ico, be wired into the

@@ -12,7 +12,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <LangVersion>latest</LangVersion>
-    <RootNamespace>TaskbarNetMonitor</RootNamespace>
+    <RootNamespace>HASNetMonitor</RootNamespace>
     <AssemblyName>HASNetMonitor</AssemblyName>
     <!-- The version shown in the About box and in the exe's file properties.
          Core/AppInfo.cs reads it back from the assembly. -->
@@ -67,7 +67,7 @@
   <ItemGroup>
     <!-- Every file may use the shared helpers (Numeric, Elapsed, ConfigJson) without a
          per-file using, identically on both targets. -->
-    <Using Include="TaskbarNetMonitor.Core" />
+    <Using Include="HASNetMonitor.Core" />
   </ItemGroup>
 
 </Project>

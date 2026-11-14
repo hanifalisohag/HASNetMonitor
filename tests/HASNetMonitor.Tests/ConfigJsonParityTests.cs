@@ -1,4 +1,4 @@
-namespace TaskbarNetMonitor.Tests;
+namespace HASNetMonitor.Tests;
 
 /// <summary>
 /// The config file, on whichever backend this target uses: System.Text.Json for

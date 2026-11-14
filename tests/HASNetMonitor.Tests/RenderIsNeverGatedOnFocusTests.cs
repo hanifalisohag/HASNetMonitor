@@ -1,6 +1,6 @@
 using Xunit;
 
-namespace TaskbarNetMonitor.Tests;
+namespace HASNetMonitor.Tests;
 
 /// <summary>
 /// Guards the bug that made the widget vanish for good: the render path used to

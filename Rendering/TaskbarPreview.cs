@@ -1,8 +1,8 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
-using TaskbarNetMonitor.Core;
+using HASNetMonitor.Core;
 
-namespace TaskbarNetMonitor.Rendering;
+namespace HASNetMonitor.Rendering;
 
 /// <summary>
 /// The picture shown in the settings dialog: the widget drawn at twice normal size on

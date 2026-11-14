@@ -1,4 +1,4 @@
-namespace TaskbarNetMonitor.Core;
+namespace HASNetMonitor.Core;
 
 internal enum TaskbarOrientation
 {

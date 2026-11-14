@@ -1,8 +1,8 @@
 using System.Drawing;
-using TaskbarNetMonitor.Core;
-using TaskbarNetMonitor.Rendering;
+using HASNetMonitor.Core;
+using HASNetMonitor.Rendering;
 
-namespace TaskbarNetMonitor.Tests;
+namespace HASNetMonitor.Tests;
 
 /// <summary>One rendered frame plus the small helpers every rendering test needs.</summary>
 internal sealed class Frame : IDisposable

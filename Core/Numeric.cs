@@ -1,4 +1,4 @@
-namespace TaskbarNetMonitor.Core;
+namespace HASNetMonitor.Core;
 
 /// <summary>
 /// The small numeric helpers the app shares. They exist instead of

@@ -4,7 +4,7 @@
 // compiles unchanged for both targets. Every member delegates to System.Math; only
 // Clamp is new. Members are added here as the tests need them, and a missing one shows
 // up as a compile error rather than a silent difference in behaviour.
-namespace TaskbarNetMonitor.Tests;
+namespace HASNetMonitor.Tests;
 
 internal static class MathBridge
 {

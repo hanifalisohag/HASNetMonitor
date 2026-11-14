@@ -1,6 +1,6 @@
 using System.Diagnostics;
 
-namespace TaskbarNetMonitor.Core;
+namespace HASNetMonitor.Core;
 
 /// <summary>
 /// Time since a <see cref="Stopwatch.GetTimestamp"/> reading. This wraps

@@ -1,6 +1,6 @@
 using System.Net.NetworkInformation;
 
-namespace TaskbarNetMonitor.Core;
+namespace HASNetMonitor.Core;
 
 /// <summary>
 /// Sums the byte counters of all "real" adapters. Interface enumeration is the

@@ -8,7 +8,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 #endif
 
-namespace TaskbarNetMonitor.Core;
+namespace HASNetMonitor.Core;
 
 /// <summary>
 /// User settings. Everything is public-read/write so it round-trips through

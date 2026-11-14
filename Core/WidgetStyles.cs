@@ -1,4 +1,4 @@
-namespace TaskbarNetMonitor.Core;
+namespace HASNetMonitor.Core;
 
 /// <summary>
 /// The ways the widget can draw itself. Kept as strings in the config so a

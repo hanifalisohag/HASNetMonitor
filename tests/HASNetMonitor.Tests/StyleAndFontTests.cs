@@ -1,10 +1,10 @@
 using System.Drawing;
 using System.Text.Json;
-using TaskbarNetMonitor.Core;
-using TaskbarNetMonitor.Rendering;
+using HASNetMonitor.Core;
+using HASNetMonitor.Rendering;
 using Xunit;
 
-namespace TaskbarNetMonitor.Tests;
+namespace HASNetMonitor.Tests;
 
 /// <summary>
 /// The look options: drawing style, stacking order, font face/weight/slant, rounded

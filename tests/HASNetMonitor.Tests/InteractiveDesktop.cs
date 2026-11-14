@@ -1,7 +1,7 @@
 using System.Runtime.InteropServices;
-using TaskbarNetMonitor.Interop;
+using HASNetMonitor.Interop;
 
-namespace TaskbarNetMonitor.Tests;
+namespace HASNetMonitor.Tests;
 
 /// <summary>
 /// Whether this session can actually show a window. While the desktop is locked or

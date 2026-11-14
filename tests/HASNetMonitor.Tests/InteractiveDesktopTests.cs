@@ -1,6 +1,6 @@
-using TaskbarNetMonitor.Interop;
+using HASNetMonitor.Interop;
 
-namespace TaskbarNetMonitor.Tests;
+namespace HASNetMonitor.Tests;
 
 /// <summary>
 /// The native window tests may only run when a window can really be seen. This pins the

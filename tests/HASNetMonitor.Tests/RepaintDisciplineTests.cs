@@ -1,9 +1,9 @@
-using TaskbarNetMonitor.Core;
-using TaskbarNetMonitor.Rendering;
-using TaskbarNetMonitor.UI;
+using HASNetMonitor.Core;
+using HASNetMonitor.Rendering;
+using HASNetMonitor.UI;
 using Xunit;
 
-namespace TaskbarNetMonitor.Tests;
+namespace HASNetMonitor.Tests;
 
 /// <summary>
 /// The repaint discipline: what actually goes on screen decides when the widget

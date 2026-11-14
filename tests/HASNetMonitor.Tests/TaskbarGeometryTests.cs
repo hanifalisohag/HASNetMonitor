@@ -1,7 +1,7 @@
 using System.Drawing;
-using TaskbarNetMonitor.Core;
+using HASNetMonitor.Core;
 
-namespace TaskbarNetMonitor.Tests;
+namespace HASNetMonitor.Tests;
 
 public class TaskbarGeometryTests
 {

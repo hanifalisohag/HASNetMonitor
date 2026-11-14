@@ -1,6 +1,6 @@
 using System.Runtime.InteropServices;
 
-namespace TaskbarNetMonitor.Interop;
+namespace HASNetMonitor.Interop;
 
 [StructLayout(LayoutKind.Sequential)]
 internal struct NativePoint

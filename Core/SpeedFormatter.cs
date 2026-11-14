@@ -1,6 +1,6 @@
 using System.Globalization;
 
-namespace TaskbarNetMonitor.Core;
+namespace HASNetMonitor.Core;
 
 /// <summary>
 /// Formats a byte-per-second rate the way the Windows network flyout does,

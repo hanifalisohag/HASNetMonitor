@@ -1,4 +1,4 @@
-namespace TaskbarNetMonitor.Core;
+namespace HASNetMonitor.Core;
 
 /// <summary>
 /// Integer screen rectangle. Kept separate from <see cref="System.Drawing.Rectangle"/>

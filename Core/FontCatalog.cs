@@ -1,7 +1,7 @@
 using System.Drawing;
 using System.Drawing.Text;
 
-namespace TaskbarNetMonitor.Core;
+namespace HASNetMonitor.Core;
 
 /// <summary>
 /// Which font the widget draws with. The configured name is only ever stored when

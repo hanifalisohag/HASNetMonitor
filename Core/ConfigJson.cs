@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace TaskbarNetMonitor.Core;
+namespace HASNetMonitor.Core;
 
 /// <summary>
 /// Raised when a config file cannot be read. The callers treat it as "use defaults",

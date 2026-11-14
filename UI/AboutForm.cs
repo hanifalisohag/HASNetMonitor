@@ -1,8 +1,8 @@
 using System.Diagnostics;
 using System.Drawing;
-using TaskbarNetMonitor.Core;
+using HASNetMonitor.Core;
 
-namespace TaskbarNetMonitor.UI;
+namespace HASNetMonitor.UI;
 
 /// <summary>
 /// About box: the product name, its version, the author and a way to write to them.

@@ -1,6 +1,6 @@
 using System.Drawing;
 
-namespace TaskbarNetMonitor.Core;
+namespace HASNetMonitor.Core;
 
 /// <summary>
 /// Parses and formats the configurable bar colours. Invalid input never throws:

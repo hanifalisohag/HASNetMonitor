@@ -1,7 +1,7 @@
-using TaskbarNetMonitor.Interop;
-using TaskbarNetMonitor.UI;
+using HASNetMonitor.Interop;
+using HASNetMonitor.UI;
 
-namespace TaskbarNetMonitor.Tests;
+namespace HASNetMonitor.Tests;
 
 /// <summary>
 /// The Win+Tab bug that survived the first attempt, and the two rules that fix it.
