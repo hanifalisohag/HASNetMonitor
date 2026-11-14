@@ -32,16 +32,18 @@ internal static class TaskbarGeometry
 
     /// <summary>
     /// Places the widget immediately before the notification area, centred on the
-    /// taskbar's short axis. Returns null when the taskbar is degenerate or simply
-    /// too small to hold the widget: the caller then hides the window instead of
-    /// squashing it into a shape that cannot show anything.
+    /// taskbar's short axis, then shifts it by the user's nudge. Returns null when the
+    /// taskbar is degenerate or simply too small to hold the widget: the caller then
+    /// hides the window instead of squashing it into a shape that cannot show anything.
     /// </summary>
     public static PixelRect? ComputePlacement(
         PixelRect taskbar,
         PixelRect? tray,
         Size layoutSize,
         int offsetFromTray,
-        int margin = DefaultMargin)
+        int margin = DefaultMargin,
+        int nudgeX = 0,
+        int nudgeY = 0)
     {
         if (taskbar.IsEmpty || layoutSize.Width <= 0 || layoutSize.Height <= 0)
         {
@@ -72,7 +74,9 @@ internal static class TaskbarGeometry
             }
 
             x = ClampInside(x, taskbar.Left + margin, taskbar.Right - margin - widget.Width);
+            x = ClampInside(x + nudgeX, taskbar.Left, taskbar.Right - widget.Width);
             int y = CentredOnAxis(taskbar.Top, taskbar.Height, widget.Height, margin);
+            y = ClampInside(y + nudgeY, taskbar.Top, taskbar.Bottom - widget.Height);
             return new PixelRect(x, y, widget.Width, widget.Height);
         }
 
@@ -92,7 +96,9 @@ internal static class TaskbarGeometry
         }
 
         widgetY = ClampInside(widgetY, taskbar.Top + margin, taskbar.Bottom - margin - widget.Height);
+        widgetY = ClampInside(widgetY + nudgeY, taskbar.Top, taskbar.Bottom - widget.Height);
         int widgetX = CentredOnAxis(taskbar.Left, taskbar.Width, widget.Width, margin);
+        widgetX = ClampInside(widgetX + nudgeX, taskbar.Left, taskbar.Right - widget.Width);
         return new PixelRect(widgetX, widgetY, widget.Width, widget.Height);
     }
 

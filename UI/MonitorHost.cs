@@ -59,6 +59,74 @@ internal sealed class MonitorHost : ApplicationContext
         settings.Click += (_, _) => ShowSettings();
         menu.Items.Add(settings);
 
+        // One-click switches for the two options people change most often.
+        var look = new ToolStripMenuItem("Look");
+        foreach (string style in WidgetStyles.All)
+        {
+            string key = style;
+            var item = new ToolStripMenuItem(WidgetStyles.Describe(key)) { Tag = "style:" + key };
+            item.Click += (_, _) => ApplyLook(config => config.Style = key);
+            look.DropDownItems.Add(item);
+        }
+
+        look.DropDownItems.Add(new ToolStripSeparator());
+
+        var downloadOnTop = new ToolStripMenuItem("Download on top, upload below")
+        {
+            Tag = "order:" + StackOrder.DownloadFirst,
+        };
+        downloadOnTop.Click += (_, _) => ApplyLook(config => config.SortOrder = StackOrder.DownloadFirst);
+        look.DropDownItems.Add(downloadOnTop);
+
+        var uploadOnTop = new ToolStripMenuItem("Upload on top, download below")
+        {
+            Tag = "order:" + StackOrder.UploadFirst,
+        };
+        uploadOnTop.Click += (_, _) => ApplyLook(config => config.SortOrder = StackOrder.UploadFirst);
+        look.DropDownItems.Add(uploadOnTop);
+
+        look.DropDownItems.Add(new ToolStripSeparator());
+
+        var bold = new ToolStripMenuItem("Bold text") { Tag = "bold" };
+        bold.Click += (_, _) => ApplyLook(config => config.FontBold = !config.FontBold);
+        look.DropDownItems.Add(bold);
+
+        var italic = new ToolStripMenuItem("Italic text") { Tag = "italic" };
+        italic.Click += (_, _) => ApplyLook(config => config.FontItalic = !config.FontItalic);
+        look.DropDownItems.Add(italic);
+
+        menu.Items.Add(look);
+
+        var position = new ToolStripMenuItem("Position");
+        foreach ((string label, int dx, int dy) in new[]
+        {
+            ("Nudge left", -4, 0),
+            ("Nudge right", 4, 0),
+            ("Nudge up", 0, -2),
+            ("Nudge down", 0, 2),
+        })
+        {
+            var item = new ToolStripMenuItem(label) { Tag = "nudge" };
+            int offsetX = dx;
+            int offsetY = dy;
+            item.Click += (_, _) => ApplyLook(config =>
+            {
+                config.NudgeXPx = Math.Clamp(config.NudgeXPx + offsetX, -MonitorConfig.MaxNudgePx, MonitorConfig.MaxNudgePx);
+                config.NudgeYPx = Math.Clamp(config.NudgeYPx + offsetY, -MonitorConfig.MaxNudgePx, MonitorConfig.MaxNudgePx);
+            });
+            position.DropDownItems.Add(item);
+        }
+
+        position.DropDownItems.Add(new ToolStripSeparator());
+        var resetPosition = new ToolStripMenuItem("Reset position") { Tag = "nudge-reset" };
+        resetPosition.Click += (_, _) => ApplyLook(config =>
+        {
+            config.NudgeXPx = 0;
+            config.NudgeYPx = 0;
+        });
+        position.DropDownItems.Add(resetPosition);
+        menu.Items.Add(position);
+
         var rescale = new ToolStripMenuItem("Reset bar scaling");
         rescale.Click += (_, _) => _widget.ResetScale();
         menu.Items.Add(rescale);
@@ -81,9 +149,45 @@ internal sealed class MonitorHost : ApplicationContext
         {
             startup.Checked = _config.StartWithWindows;
             settings.Enabled = !_settingsOpen;
+
+            foreach (ToolStripItem item in look.DropDownItems)
+            {
+                if (item is not ToolStripMenuItem entry)
+                {
+                    continue;
+                }
+
+                entry.Checked = entry.Tag switch
+                {
+                    "bold" => _config.FontBold,
+                    "italic" => _config.FontItalic,
+                    "order:DownloadFirst" => _config.SortOrder == StackOrder.DownloadFirst,
+                    "order:UploadFirst" => _config.SortOrder == StackOrder.UploadFirst,
+                    string tag => tag.StartsWith("style:", StringComparison.Ordinal)
+                        && _config.Style == tag["style:".Length..],
+                    _ => false,
+                };
+            }
         };
 
         return menu;
+    }
+
+    /// <summary>
+    /// Applies one of the tray-menu look switches: change the live config, save it and
+    /// redraw at once.
+    /// </summary>
+    private void ApplyLook(Action<MonitorConfig> change)
+    {
+        if (_disposed)
+        {
+            return;
+        }
+
+        change(_config);
+        _config.Normalize();
+        _config.TrySave(_configPath);
+        _widget.ApplyConfig();
     }
 
     private void ShowMenuAt(Point screenPoint)
@@ -111,8 +215,17 @@ internal sealed class MonitorHost : ApplicationContext
         try
         {
             using var form = new SettingsForm(_config.Clone());
+
+            // Keep the pre-dialog state so Cancel can put the widget back exactly as
+            // it was, even though every change was already applied live.
+            MonitorConfig original = _config.Clone();
+
+            form.LiveChanged += (_, live) => ApplyLive(form, live, original);
+
             if (form.ShowDialog() != DialogResult.OK || form.Result is not { } updated)
             {
+                _config.CopyFrom(original);
+                _widget.ApplyConfig();
                 return;
             }
 
@@ -125,6 +238,20 @@ internal sealed class MonitorHost : ApplicationContext
         {
             _settingsOpen = false;
         }
+    }
+
+    /// <summary>
+    /// Shows a change on the real widget immediately. Start-with-Windows is the one
+    /// setting that is not applied here: writing the registry belongs to accepting the
+    /// dialog, so the original value is kept until then.
+    /// </summary>
+    private void ApplyLive(SettingsForm form, MonitorConfig live, MonitorConfig original)
+    {
+        MonitorConfig applied = live.Clone();
+        applied.StartWithWindows = original.StartWithWindows;
+
+        _config.CopyFrom(applied);
+        _widget.ApplyConfig();
     }
 
     private void ApplyStartup(bool enabled)

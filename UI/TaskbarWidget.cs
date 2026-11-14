@@ -457,7 +457,9 @@ internal sealed class TaskbarWidget : LayeredWindow
                 snapshot.TaskbarRect,
                 snapshot.TrayRect,
                 layout.Size,
-                _config.OffsetFromTrayPx) is not { } placement)
+                _config.OffsetFromTrayPx,
+                nudgeX: _config.NudgeXPx,
+                nudgeY: _config.NudgeYPx) is not { } placement)
         {
             FrameTrace.Write("render: placement failed -> keep last frame");
             return;

@@ -14,7 +14,9 @@ internal sealed class MonitorConfig
     public const int MinRefreshIntervalMs = 250;
     public const int MaxRefreshIntervalMs = 60000;
     public const int DefaultRefreshIntervalMs = 1000;
-    public const int MaxBarThicknessPx = 12;
+    public const int MaxBarThicknessPx = 24;
+    public const int MaxSegmentGapPx = 12;
+    public const int MaxNudgePx = 400;
     public const double MinFontSizePt = 6;
     public const double MaxFontSizePt = 20;
     public const string DefaultDownloadColor = "#2ECC71";
@@ -28,6 +30,12 @@ internal sealed class MonitorConfig
 
     public int OffsetFromTrayPx { get; set; } = 6;
 
+    /// <summary>Shifts the widget left (negative) or right after placing it next to the tray.</summary>
+    public int NudgeXPx { get; set; }
+
+    /// <summary>Shifts the widget up (negative) or down after placing it next to the tray.</summary>
+    public int NudgeYPx { get; set; }
+
     public bool AutoScale { get; set; } = true;
 
     public double MaxScaleMbps { get; set; } = 100;
@@ -40,7 +48,29 @@ internal sealed class MonitorConfig
 
     public int BarThicknessPx { get; set; } = 3;
 
+    /// <summary>Empty space between the blocks of a segmented style, in pixels.</summary>
+    public int SegmentGapPx { get; set; } = 2;
+
     public double FontSizePt { get; set; } = 9;
+
+    /// <summary>One of <see cref="WidgetStyles"/>; unknown values fall back to Bars.</summary>
+    public string Style { get; set; } = WidgetStyles.Bars;
+
+    /// <summary>One of <see cref="StackOrder"/>: which traffic row is drawn first.</summary>
+    public string SortOrder { get; set; } = StackOrder.DownloadFirst;
+
+    /// <summary>Installed family name, or empty for the automatic taskbar font.</summary>
+    public string FontFamily { get; set; } = FontCatalog.Automatic;
+
+    public bool FontBold { get; set; }
+
+    public bool FontItalic { get; set; }
+
+    /// <summary>Rounded bar caps instead of square ones.</summary>
+    public bool RoundedBars { get; set; }
+
+    /// <summary>A soft halo around the fills, for the neon look.</summary>
+    public bool AccentGlow { get; set; }
 
     /// <summary>
     /// Default on: the whole point is a monitor that is always there. It is a
@@ -91,7 +121,17 @@ internal sealed class MonitorConfig
         ShowBackdrop = ShowBackdrop,
         BackdropOpacity = BackdropOpacity,
         BarThicknessPx = BarThicknessPx,
+        SegmentGapPx = SegmentGapPx,
+        NudgeXPx = NudgeXPx,
+        NudgeYPx = NudgeYPx,
         FontSizePt = FontSizePt,
+        Style = Style,
+        SortOrder = SortOrder,
+        FontFamily = FontFamily,
+        FontBold = FontBold,
+        FontItalic = FontItalic,
+        RoundedBars = RoundedBars,
+        AccentGlow = AccentGlow,
         StartWithWindows = StartWithWindows,
     };
 
@@ -113,7 +153,17 @@ internal sealed class MonitorConfig
         ShowBackdrop = other.ShowBackdrop;
         BackdropOpacity = other.BackdropOpacity;
         BarThicknessPx = other.BarThicknessPx;
+        SegmentGapPx = other.SegmentGapPx;
+        NudgeXPx = other.NudgeXPx;
+        NudgeYPx = other.NudgeYPx;
         FontSizePt = other.FontSizePt;
+        Style = other.Style;
+        SortOrder = other.SortOrder;
+        FontFamily = other.FontFamily;
+        FontBold = other.FontBold;
+        FontItalic = other.FontItalic;
+        RoundedBars = other.RoundedBars;
+        AccentGlow = other.AccentGlow;
         StartWithWindows = other.StartWithWindows;
         Normalize();
     }
@@ -132,6 +182,11 @@ internal sealed class MonitorConfig
 
         OffsetFromTrayPx = Math.Clamp(OffsetFromTrayPx, 0, 64);
 
+        // A nudge is a fine adjustment, never a way to fling the widget off its taskbar:
+        // placement clamps the result inside the bar as well.
+        NudgeXPx = Math.Clamp(NudgeXPx, -MaxNudgePx, MaxNudgePx);
+        NudgeYPx = Math.Clamp(NudgeYPx, -MaxNudgePx, MaxNudgePx);
+
         if (double.IsNaN(MaxScaleMbps) || double.IsInfinity(MaxScaleMbps))
         {
             MaxScaleMbps = 100;
@@ -140,6 +195,7 @@ internal sealed class MonitorConfig
         MaxScaleMbps = Math.Clamp(MaxScaleMbps, 0.01, 100_000);
 
         BarThicknessPx = Math.Clamp(BarThicknessPx, 1, MaxBarThicknessPx);
+        SegmentGapPx = Math.Clamp(SegmentGapPx, 0, MaxSegmentGapPx);
         BackdropOpacity = Math.Clamp(BackdropOpacity, 0, 255);
 
         if (double.IsNaN(FontSizePt) || double.IsInfinity(FontSizePt))
@@ -148,6 +204,12 @@ internal sealed class MonitorConfig
         }
 
         FontSizePt = Math.Clamp(FontSizePt, MinFontSizePt, MaxFontSizePt);
+
+        Style = WidgetStyles.Normalize(Style);
+        SortOrder = StackOrder.Normalize(SortOrder);
+
+        // Keep only a family that is really here; otherwise the automatic taskbar font.
+        FontFamily = FontCatalog.Normalize(FontFamily);
 
         return this;
     }
