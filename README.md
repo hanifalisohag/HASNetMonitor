@@ -219,6 +219,7 @@ repaired on load — out-of-range values are clamped, unknown style names fall b
 | `NudgeXPx` | `0` | −400–400 |
 | `NudgeYPx` | `0` | −400–400 |
 | `AutoScale` | `true` | `true`/`false` |
+| `SharedScale` | `true` | `true`/`false` |
 | `MaxScaleMbps` | `100` | 0.01–100000 |
 | `ShowText` | `true` | `true`/`false` |
 | `ShowBackdrop` | `false` | `true`/`false` |
@@ -269,6 +270,22 @@ When text is on, each row is the direction arrow followed by the figure:
 
 The arrow is not part of the speed string: `SpeedFormatter.Format` returns the figure
 only, and the renderer draws the two runs side by side from the configured colours.
+
+### How the two bars are scaled
+
+Both rows are measured against **one** full-scale rate — the faster of the two
+directions, decaying over a few seconds — so the bars can be compared directly: 10 MB/s
+down beside 14 KB/s up draws a full download row and an upload row a pixel wide, exactly
+as the numbers say. This is the default (`SharedScale: true`, **Bar scale: One scale for
+both bars** in the Look group).
+
+Turned off, each direction fills against **its own** peak. That keeps a trickle of
+upload visible beside a flood of download, at the cost of both rows reading "full" no
+matter how they compare — 14 KB/s of upload drew 53 of 60 px next to 10 MB/s of
+download.
+
+With `AutoScale` off, `MaxScaleMbps` is one peak for both rows either way, so the option
+only changes what auto-scaling does.
 
 ### Sharpness: matching the clock exactly
 

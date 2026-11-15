@@ -36,6 +36,7 @@ internal sealed class SettingsForm : Form
     private readonly NumericUpDown _fontSize;
     private readonly NumericUpDown _backdropOpacity;
     private readonly CheckBox _autoScale;
+    private readonly CheckBox _sharedScale;
     private readonly CheckBox _showText;
     private readonly CheckBox _showBackdrop;
     private readonly CheckBox _crispText;
@@ -92,6 +93,8 @@ internal sealed class SettingsForm : Form
         };
 
         _autoScale = new CheckBox { Text = "Fit bars to current traffic", Checked = config.AutoScale, AutoSize = true };
+
+        _sharedScale = new CheckBox { Text = "One scale for both bars", Checked = config.SharedScale, AutoSize = true };
 
         _maxScale = new NumericUpDown
         {
@@ -220,6 +223,7 @@ internal sealed class SettingsForm : Form
         AddRow(colours, "Upload colour:", _uploadColorButton);
         AddRow(colours, "Refresh (ms):", _interval);
         AddRow(colours, "Scaling:", _autoScale);
+        AddRow(colours, "Bar scale:", _sharedScale);
         AddRow(colours, "Max scale (Mbps):", _maxScale);
         AddRow(colours, "Appearance:", _showBackdrop);
         AddRow(colours, "Tint opacity:", _backdropOpacity);
@@ -289,7 +293,7 @@ internal sealed class SettingsForm : Form
         foreach (Control input in new Control[]
         {
             _style, _sortOrder, _fontFamily, _bold, _italic, _roundedBars, _accentGlow,
-            _showText, _showBackdrop, _crispText, _barThickness, _segmentGap, _fontSize,
+            _showText, _showBackdrop, _crispText, _sharedScale, _barThickness, _segmentGap, _fontSize,
             _nudgeX, _nudgeY, _offsetFromTray, _nudgeLeft, _nudgeRight, _nudgeUp, _nudgeDown, _resetNudge,
         })
         {
@@ -337,6 +341,7 @@ internal sealed class SettingsForm : Form
             UploadColorHex = _uploadColorButton.Tag as string ?? MonitorConfig.DefaultUploadColor,
             RefreshIntervalMs = (int)_interval.Value,
             AutoScale = _autoScale.Checked,
+            SharedScale = _sharedScale.Checked,
             MaxScaleMbps = (double)_maxScale.Value,
             BarThicknessPx = (int)_barThickness.Value,
             SegmentGapPx = (int)_segmentGap.Value,

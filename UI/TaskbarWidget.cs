@@ -407,10 +407,11 @@ internal sealed class TaskbarWidget : LayeredWindow
         double downloadRate = _download.SmoothedBytesPerSecond;
         double uploadRate = _upload.SmoothedBytesPerSecond;
 
-        _scaler.Update(downloadRate, uploadRate, elapsed, _config.AutoScale, _config.ManualPeakBytesPerSecond);
+        _scaler.Update(downloadRate, uploadRate, elapsed, _config.AutoScale, _config.ManualPeakBytesPerSecond, _config.SharedScale);
 
         // Bars follow the scaled ratios, eased so a burst cannot slam them from full
-        // width to a sliver and back on every tick.
+        // width to a sliver and back on every tick. With SharedScale on, both ratios
+        // come from one full-scale rate, so the rows stay comparable.
         _downloadBar.Update(_scaler.DownloadRatio(downloadRate), elapsed);
         _uploadBar.Update(_scaler.UploadRatio(uploadRate), elapsed);
 

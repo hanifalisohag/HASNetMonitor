@@ -75,6 +75,13 @@ internal sealed class MonitorConfig
     /// <summary>Rounded bar caps instead of square ones.</summary>
     public bool RoundedBars { get; set; }
 
+    /// <summary>
+    /// Both bars are measured against one full-scale rate, so the rows can be compared
+    /// directly: a trickle beside a flood reads as a sliver instead of a full bar.
+    /// Turned off, each direction fills against its own peak and both usually read full.
+    /// </summary>
+    public bool SharedScale { get; set; } = true;
+
     /// <summary>A soft halo around the fills, for the neon look.</summary>
     public bool AccentGlow { get; set; }
 
@@ -137,6 +144,7 @@ internal sealed class MonitorConfig
         FontBold = FontBold,
         FontItalic = FontItalic,
         RoundedBars = RoundedBars,
+        SharedScale = SharedScale,
         AccentGlow = AccentGlow,
         CrispText = CrispText,
         StartWithWindows = StartWithWindows,
@@ -173,6 +181,7 @@ internal sealed class MonitorConfig
         FontBold = other.FontBold;
         FontItalic = other.FontItalic;
         RoundedBars = other.RoundedBars;
+        SharedScale = other.SharedScale;
         AccentGlow = other.AccentGlow;
         CrispText = other.CrispText;
         StartWithWindows = other.StartWithWindows;
