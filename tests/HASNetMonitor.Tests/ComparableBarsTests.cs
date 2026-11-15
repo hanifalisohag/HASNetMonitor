@@ -17,13 +17,13 @@ public class ComparableBarsTests
     /// <summary>A scaler that has seen the same sample a few times, as the widget would.</summary>
     private static AutoScaler Settled(double download, double upload, bool sharedScale = true, int ticks = 10)
     {
-        var scaler = new AutoScaler();
+        var scaler = new AutoScaler { SharedScale = sharedScale };
         for (int i = 0; i < ticks; i++)
         {
-            scaler.Update(download, upload, 1.0, autoScale: true, manualPeakBytesPerSecond: 0, sharedScale: sharedScale);
+            scaler.Update(download, upload, 1.0, autoScale: true, manualPeakBytesPerSecond: 0);
         }
 
-        scaler.Update(download, upload, 1.0, autoScale: true, manualPeakBytesPerSecond: 0, sharedScale: sharedScale);
+        scaler.Update(download, upload, 1.0, autoScale: true, manualPeakBytesPerSecond: 0);
         return scaler;
     }
 
@@ -34,8 +34,8 @@ public class ComparableBarsTests
     {
         AutoScaler scaler = Settled(10 * Mb, 14 * Kb);
 
-        double download = scaler.DownloadRatio(10 * Mb);
-        double upload = scaler.UploadRatio(14 * Kb);
+        double download = scaler.BarRatio(true, 10 * Mb);
+        double upload = scaler.BarRatio(false, 14 * Kb);
 
         Assert.Equal(1.0, download, 6);
         Assert.True(upload < 0.01, $"upload ratio {upload} is not a sliver");
@@ -56,8 +56,8 @@ public class ComparableBarsTests
             {
                 AutoScaler scaler = Settled(download, upload);
 
-                double dl = scaler.DownloadRatio(download);
-                double ul = scaler.UploadRatio(upload);
+                double dl = scaler.BarRatio(true, download);
+                double ul = scaler.BarRatio(false, upload);
 
                 Assert.InRange(dl, 0, 1);
                 Assert.InRange(ul, 0, 1);
@@ -77,8 +77,8 @@ public class ComparableBarsTests
 
                 // And the ratio is honestly relative: the same rate gives the same bar
                 // whichever row it appears in.
-                Assert.Equal(scaler.SharedRatio(download), scaler.DownloadRatio(download), 9);
-                Assert.Equal(scaler.SharedRatio(upload), scaler.UploadRatio(upload), 9);
+                Assert.Equal(scaler.SharedRatio(download), scaler.BarRatio(true, download), 9);
+                Assert.Equal(scaler.SharedRatio(upload), scaler.BarRatio(false, upload), 9);
             }
         }
     }
@@ -127,8 +127,8 @@ public class ComparableBarsTests
     {
         AutoScaler scaler = Settled(2 * Mb, 2 * Mb);
 
-        Assert.Equal(scaler.DownloadRatio(2 * Mb), scaler.UploadRatio(2 * Mb), 9);
-        Assert.Equal(1.0, scaler.DownloadRatio(2 * Mb), 6);
+        Assert.Equal(scaler.BarRatio(true, 2 * Mb), scaler.BarRatio(false, 2 * Mb), 9);
+        Assert.Equal(1.0, scaler.BarRatio(true, 2 * Mb), 6);
     }
 
     [Fact]
@@ -137,7 +137,7 @@ public class ComparableBarsTests
         AutoScaler scaler = Settled(20 * Kb, 5 * Mb);
 
         Assert.True(
-            scaler.UploadRatio(5 * Mb) > scaler.DownloadRatio(20 * Kb),
+            scaler.BarRatio(false, 5 * Mb) > scaler.BarRatio(true, 20 * Kb),
             "an upload upload hundreds of times faster than the download did not draw the longer bar");
     }
 
@@ -145,16 +145,16 @@ public class ComparableBarsTests
     public void ADirectionThatStopsReleasesTheSharedScaleForTheOther()
     {
         AutoScaler scaler = Settled(10 * Mb, 1 * Mb);
-        Assert.True(scaler.UploadRatio(1 * Mb) < 0.2, "upload should be small beside 10 MB/s");
+        Assert.True(scaler.BarRatio(false, 1 * Mb) < 0.2, "upload should be small beside 10 MB/s");
 
         // Download stops; the shared peak must decay down to the upload so the upload bar
         // grows back instead of staying crushed by history.
         for (int i = 0; i < 20; i++)
         {
-            scaler.Update(0, 1 * Mb, 1.0, autoScale: true, manualPeakBytesPerSecond: 0, sharedScale: true);
+            scaler.Update(0, 1 * Mb, 1.0, autoScale: true, manualPeakBytesPerSecond: 0);
         }
 
-        Assert.True(scaler.UploadRatio(1 * Mb) > 0.9, $"upload ratio {scaler.UploadRatio(1 * Mb)} did not recover");
+        Assert.True(scaler.BarRatio(false, 1 * Mb) > 0.9, $"upload ratio {scaler.BarRatio(false, 1 * Mb)} did not recover");
     }
 
     [Fact]
@@ -163,8 +163,8 @@ public class ComparableBarsTests
         // The old reading is still one setting away, unchanged.
         AutoScaler scaler = Settled(10 * Mb, 14 * Kb, sharedScale: false);
 
-        Assert.Equal(1.0, scaler.DownloadRatio(10 * Mb), 6);
-        Assert.True(scaler.UploadRatio(14 * Kb) > 0.5, "per-direction mode should still fill the upload row");
+        Assert.Equal(1.0, scaler.BarRatio(true, 10 * Mb), 6);
+        Assert.True(scaler.BarRatio(false, 14 * Kb) > 0.5, "per-direction mode should still fill the upload row");
         Assert.False(scaler.SharedScale);
     }
 
@@ -173,18 +173,17 @@ public class ComparableBarsTests
     {
         foreach (bool sharedScale in new[] { false, true })
         {
-            var scaler = new AutoScaler();
+            var scaler = new AutoScaler { SharedScale = sharedScale };
             scaler.Update(
                 4 * Mb,
                 4 * Kb,
                 1.0,
                 autoScale: false,
-                manualPeakBytesPerSecond: 8 * Mb,
-                sharedScale: sharedScale);
+                manualPeakBytesPerSecond: 8 * Mb);
 
             Assert.Equal(8 * Mb, scaler.SharedPeak, 0);
-            Assert.Equal(0.5, scaler.DownloadRatio(4 * Mb), 6);
-            Assert.True(scaler.UploadRatio(4 * Kb) < 0.01);
+            Assert.Equal(0.5, scaler.BarRatio(true, 4 * Mb), 6);
+            Assert.True(scaler.BarRatio(false, 4 * Kb) < 0.01);
         }
     }
 
@@ -196,7 +195,7 @@ public class ComparableBarsTests
     public void GarbageRatesCannotBreakTheSharedScale(double rate)
     {
         var scaler = new AutoScaler();
-        scaler.Update(rate, rate, 1.0, autoScale: true, manualPeakBytesPerSecond: 0, sharedScale: true);
+        scaler.Update(rate, rate, 1.0, autoScale: true, manualPeakBytesPerSecond: 0);
 
         Assert.False(double.IsNaN(scaler.SharedPeak));
         Assert.False(double.IsInfinity(scaler.SharedPeak));
@@ -248,10 +247,13 @@ public class ComparableBarsTests
     [Fact]
     public void TheWidgetAsksForOneScaleFromTheConfig()
     {
-        // The scaler is only comparable because the widget passes the setting in;
-        // dropping the argument would silently restore the old per-row reading.
+        // The scaler is only comparable because the widget passes the setting in and
+        // reads the rows through the one-scale accessors; either half going missing
+        // would silently restore the old per-row reading.
         string source = SourceText.Read("UI", "TaskbarWidget.cs");
 
-        Assert.Contains("_config.SharedScale", source, StringComparison.Ordinal);
+        Assert.Contains("_scaler.SharedScale = _config.SharedScale", source, StringComparison.Ordinal);
+        Assert.Contains("BarRatio(isDownload: true", source, StringComparison.Ordinal);
+        Assert.Contains("BarRatio(isDownload: false", source, StringComparison.Ordinal);
     }
 }

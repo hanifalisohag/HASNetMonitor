@@ -35,10 +35,10 @@ internal sealed class AutoScaler
     public bool AutoScale { get; private set; } = true;
 
     /// <summary>
-    /// Whether both bars are being measured against <see cref="SharedPeak"/>. Starts
-    /// off, so a caller that never mentions the mode keeps the per-direction reading.
+    /// Whether both rows are drawn against one full-scale rate. Off, each row fills
+    /// against its own peak, so a trickle stays visible beside a flood.
     /// </summary>
-    public bool SharedScale { get; private set; }
+    public bool SharedScale { get; set; }
 
     public void Reset()
     {
@@ -52,11 +52,9 @@ internal sealed class AutoScaler
         double uploadBytesPerSecond,
         double elapsedSeconds,
         bool autoScale,
-        double manualPeakBytesPerSecond,
-        bool sharedScale = false)
+        double manualPeakBytesPerSecond)
     {
         AutoScale = autoScale;
-        SharedScale = sharedScale;
 
         if (!autoScale)
         {
@@ -92,17 +90,25 @@ internal sealed class AutoScaler
     private static double ToRate(double rate) =>
         double.IsNaN(rate) || double.IsInfinity(rate) || rate < 0 ? 0 : rate;
 
-    public double DownloadRatio(double bytesPerSecond) =>
-        SharedScale ? SharedRatio(bytesPerSecond) : Ratio(bytesPerSecond, DownloadPeak);
+    public double DownloadRatio(double bytesPerSecond) => Ratio(bytesPerSecond, DownloadPeak);
 
-    public double UploadRatio(double bytesPerSecond) =>
-        SharedScale ? SharedRatio(bytesPerSecond) : Ratio(bytesPerSecond, UploadPeak);
+    public double UploadRatio(double bytesPerSecond) => Ratio(bytesPerSecond, UploadPeak);
 
     /// <summary>
-    /// The ratio of a rate against the shared full-scale rate, for callers that want
-    /// both directions on one scale regardless of the configured mode.
+    /// The ratio of a rate against the shared full-scale rate, whatever the mode: the
+    /// same rate gives the same number for either direction, which is what makes the
+    /// two rows comparable.
     /// </summary>
     public double SharedRatio(double bytesPerSecond) => Ratio(bytesPerSecond, SharedPeak);
+
+    /// <summary>
+    /// The ratio to draw for a row. With <see cref="SharedScale"/> on this is the shared
+    /// reading, so the rows compare; off, it falls back to that row's own peak.
+    /// </summary>
+    public double BarRatio(bool isDownload, double bytesPerSecond) =>
+        SharedScale
+            ? SharedRatio(bytesPerSecond)
+            : Ratio(bytesPerSecond, isDownload ? DownloadPeak : UploadPeak);
 
     private static double Ratio(double bytesPerSecond, double peak)
     {
