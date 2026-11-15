@@ -37,13 +37,10 @@ public class ComparableBarsTests
         double download = scaler.BarRatio(true, 10 * Mb);
         double upload = scaler.BarRatio(false, 14 * Kb);
 
-        // The 10 MB/s direction picks the next round step, 16 MB/s, and both rows fill
-        // against it.
-        Assert.Equal(16 * Mb, scaler.ScaleBytesPerSecond, 0);
-        Assert.Equal(10.0 / 16.0, download, 6);
+        Assert.Equal(1.0, download, 6);
         Assert.True(upload < 0.01, $"upload ratio {upload} is not a sliver");
-        Assert.Equal(38, DrawnPixels(download));
-        Assert.True(DrawnPixels(upload) <= 2, $"upload drew {DrawnPixels(upload)} px next to a 38 px download");
+        Assert.Equal(60, DrawnPixels(download));
+        Assert.True(DrawnPixels(upload) <= 2, $"upload drew {DrawnPixels(upload)} px next to a full download");
     }
 
     [Fact]

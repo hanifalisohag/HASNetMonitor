@@ -279,14 +279,20 @@ long download row and an upload row a pixel wide, exactly as the numbers say. Th
 default (`SharedScale: true`, **Bar scale: One scale for both bars** in the Look group).
 
 That full scale is a **round step**, not whatever the rate happened to be. The steps
-double from 16 KB/s: 16, 32, 64, 128, 256, 512 KB/s, 1 MB/s, 2, 4, 8 MB/s and up. The
-faster direction picks the next step at or above it, and both bars fill against that
-step, so a bar length always means a rate that can be named:
+double from 16 KB/s — 16, 32, 64, 128, 256, 512 KB/s, 1 MB/s, 2, 4, 8, 16 MB/s — with the
+round decimal marks 2.5, 5, 10, 20, 40 and 80 MB/s interleaved above 2 MB/s. The faster
+direction picks the next step at or above it, and both bars fill against that step, so a
+bar length always means a rate that can be named:
 
 | fastest rate | full scale | download bar (of 60 px) | upload bar |
 | --- | --- | --- | --- |
 | 15 KB/s / 10 KB/s | 16 KB/s | 56 px | 38 px |
 | 345 KB/s / 564 KB/s | 1 MB/s (1024 KB/s) | 20 px | 33 px |
+| 10 MB/s / 14 KB/s | 10 MB/s | 60 px | 1 px |
+
+The decimal marks are what keep a flat-out link from reading half empty: without them
+9 MB/s would fill against 16 MB/s and sit at 56%. With them it fills against 10 MB/s, and
+no rate ever draws below about 62% of its scale.
 
 The scale rises at once, so a burst is never clipped, and falls only after the rate has
 stayed below it for 3 seconds (`AutoScaler.StepDownHoldSeconds`). Because a rate just

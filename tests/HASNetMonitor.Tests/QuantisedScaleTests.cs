@@ -63,17 +63,8 @@ public class QuantisedScaleTests
         }
     }
 
-    /// <summary>Whether a rate is the floor or exactly double the step below it.</summary>
-    private static bool IsOnRamp(double scale)
-    {
-        double step = AutoScaler.MinimumPeakBytesPerSecond;
-        while (step < scale && step < AutoScaler.MaximumScaleStep)
-        {
-            step *= 2;
-        }
-
-        return step == scale;
-    }
+    /// <summary>Whether a rate is one of the round steps the scale may take.</summary>
+    private static bool IsOnRamp(double scale) => AutoScaler.NextScaleStep(scale) == scale;
 
     [Theory]
     [InlineData(0, 16 * 1024)]
@@ -87,14 +78,18 @@ public class QuantisedScaleTests
     [InlineData(1024 * 1024, 1024 * 1024)]
     [InlineData(1024 * 1024 + 1, 2 * 1024 * 1024)]
     [InlineData(3 * 1024 * 1024, 4 * 1024 * 1024)]
-    [InlineData(10 * 1024 * 1024, 16 * 1024 * 1024)]
+    [InlineData(4 * 1024 * 1024, 4 * 1024 * 1024)]
+    [InlineData(10 * 1024 * 1024, 10 * 1024 * 1024)]
+    [InlineData(11 * 1024 * 1024, 16 * 1024 * 1024)]
+    [InlineData(20 * 1024 * 1024, 20 * 1024 * 1024)]
+    [InlineData(64 * 1024 * 1024, 64 * 1024 * 1024)]
     public void TheScaleSnapsToTheNextRoundStepAboveTheRate(double rate, double expected)
     {
         Assert.Equal(expected, AutoScaler.NextScaleStep(rate), 6);
     }
 
     [Fact]
-    public void TheStepsAreTheDoublingRampFromTheFloor()
+    public void TheStepsClimbInRoundOrderAndNeverOvershootTwice()
     {
         double previous = AutoScaler.MinimumPeakBytesPerSecond;
 
@@ -103,12 +98,38 @@ public class QuantisedScaleTests
             double step = AutoScaler.NextScaleStep(rate);
 
             Assert.True(step >= rate || step == AutoScaler.MaximumScaleStep);
-            Assert.True(IsOnRamp(step), $"{step} is not on the ramp");
+            Assert.True(IsOnRamp(step), $"{step} is not a round step");
             Assert.True(step >= previous, $"{step} went below the previous step {previous}");
-            Assert.True(step / 2 < rate || step == AutoScaler.MinimumPeakBytesPerSecond);
+
+            // Consecutive steps at most double, so rounding alone never squashes a bar
+            // below half the track.
+            Assert.True(step <= previous * 2 + 1, $"{previous} -> {step} is too big a jump");
+
+            // Nearest: the step below this one would not have covered the rate.
+            if (step > AutoScaler.MinimumPeakBytesPerSecond)
+            {
+                double below = AutoScaler.NextScaleStep(step / 2);
+                Assert.True(below < step, $"{below} is not below {step}");
+                Assert.True(below < rate, $"{step} is not the nearest step above {rate}");
+            }
 
             previous = step;
         }
+    }
+
+    [Theory]
+    [InlineData(9 * 1024 * 1024, 10 * 1024 * 1024)]
+    [InlineData(19 * 1024 * 1024, 20 * 1024 * 1024)]
+    [InlineData(39 * 1024 * 1024, 40 * 1024 * 1024)]
+    [InlineData(79 * 1024 * 1024, 80 * 1024 * 1024)]
+    public void TheRoundMegabyteMarksKeepABusyLinkOutOfTheBottomThird(double rate, double expected)
+    {
+        // Without these marks 9 MB/s would fill against 16 MB/s and the bar would sit at
+        // 56% while the link was flat out. The mark gives it a 10 MB/s scale instead.
+        Assert.Equal(expected, AutoScaler.NextScaleStep(rate), 0);
+
+        // Whatever the row, the mark keeps the bar out of the bottom third of its scale.
+        Assert.True(rate / expected > 0.55, $"{rate} fills only {rate / expected:F2} of {expected}");
     }
 
     [Fact]
