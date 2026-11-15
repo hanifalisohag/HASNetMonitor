@@ -564,6 +564,12 @@ internal sealed class SettingsForm : Form
         _ => $"Custom ({percent.ToString(CultureInfo.InvariantCulture)}%)",
     };
 
+    /// <summary>
+    /// The arrow-size picker. It never offers a value outside
+    /// <see cref="MonitorConfig.ArrowSizePercent"/>'s own bounds, and a percentage the
+    /// config already holds is shown as its own entry rather than being reset to the
+    /// nearest preset, so a hand-edited file keeps the size it asked for.
+    /// </summary>
     private static ComboBox CreateArrowSizeBox(int selectedPercent)
     {
         int percent = Numeric.Clamp(selectedPercent, MonitorConfig.MinArrowSizePercent, MonitorConfig.MaxArrowSizePercent);

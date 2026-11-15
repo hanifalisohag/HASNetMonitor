@@ -220,6 +220,24 @@ public class ArrowSettingTests
     }
 
     [Fact]
+    public void TheArrowSizeSettingIsBoundedOnTheConfigItself()
+    {
+        // The key the dialog writes and the config file stores, named once in full so the
+        // property and its bounds cannot drift apart from the type that owns them.
+        Assert.Equal("ArrowSizePercent", nameof(MonitorConfig.ArrowSizePercent));
+        Assert.True(MonitorConfig.MinArrowSizePercent < MonitorConfig.DefaultArrowSizePercent);
+        Assert.True(MonitorConfig.DefaultArrowSizePercent < MonitorConfig.MaxArrowSizePercent);
+
+        var config = new MonitorConfig();
+        Assert.Equal(MonitorConfig.DefaultArrowSizePercent, config.ArrowSizePercent);
+        Assert.Contains("\"ArrowSizePercent\"", config.ToJson(), StringComparison.Ordinal);
+
+        // Both ends clamp, so no hand-edited file can ask for an arrow that cannot be drawn.
+        Assert.Equal(MonitorConfig.MinArrowSizePercent, new MonitorConfig { ArrowSizePercent = -5 }.Normalize().ArrowSizePercent);
+        Assert.Equal(MonitorConfig.MaxArrowSizePercent, new MonitorConfig { ArrowSizePercent = 9999 }.Normalize().ArrowSizePercent);
+    }
+
+    [Fact]
     public void TheSettingsListOffersTheDefaultAndKeepsACustomValue()
     {
         IReadOnlyList<int> presets = SettingsForm.ArrowSizeChoiceKeys(MonitorConfig.DefaultArrowSizePercent);
