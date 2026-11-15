@@ -19,10 +19,19 @@ public class SingleFileSetupTests
             File.Exists(Path.Combine(root, "App.config")),
             "App.config is back; it would produce a HASNetMonitor.exe.config to ship");
 
-        // No AppConfig element and no DPI key in an xml file: the mode comes from code.
-        string project = SourceText.Read(".", "HASNetMonitor.csproj");
-        Assert.DoesNotContain("<AppConfig", project, StringComparison.Ordinal);
-        Assert.DoesNotContain("key=\"DpiAwareness\"", project, StringComparison.Ordinal);
+        // No configuration file of any kind at the project root: the whole point is that
+        // nothing has to be copied beside the exe.
+        Assert.Empty(Directory.GetFiles(root, "*.config", SearchOption.TopDirectoryOnly));
+    }
+
+    [Fact]
+    public void TheDpiModeLivesInCodeInsteadOfAConfigFile()
+    {
+        string source = SourceText.Read("Core", "DpiAwareness.cs");
+
+        Assert.Contains("SetProcessDpiAwarenessContext", SourceText.Read("Interop", "NativeMethods.cs"), StringComparison.Ordinal);
+        Assert.Contains("PerMonitorV2", source, StringComparison.Ordinal);
+        Assert.Contains("SetProcessDPIAware", SourceText.Read("Interop", "NativeMethods.cs"), StringComparison.Ordinal);
     }
 
     [Fact]
