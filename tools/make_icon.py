@@ -41,7 +41,9 @@ def render(edge):
     thick_line(draw, [(9.7, 6.5), (12.0, 3.0), (14.3, 6.5)], UP, width, canvas)
     thick_line(draw, [(12.0, 3.8), (12.0, 14.5)], UP, width, canvas)
 
-    return image.resize((edge, edge), Image.LANCZOS)
+    # Image.LANCZOS is Pillow's long-standing alias for Image.Resampling.LANCZOS and still
+    # works, but Pillow's type stubs only declare the newer name.
+    return image.resize((edge, edge), Image.LANCZOS)  # pyright: ignore[reportAttributeAccessIssue]
 
 
 def bmp_entry(image, edge):
