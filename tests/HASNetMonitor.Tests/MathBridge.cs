@@ -53,6 +53,10 @@ internal static class MathBridge
 
     public static double Pow(double x, double y) => System.Math.Pow(x, y);
 
+    public static double Ceiling(double value) => System.Math.Ceiling(value);
+
+    public static decimal Ceiling(decimal value) => System.Math.Ceiling(value);
+
     public static double Round(double value) => System.Math.Round(value);
 
     public static double Round(double value, int digits) => System.Math.Round(value, digits);

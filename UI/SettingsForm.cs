@@ -38,6 +38,7 @@ internal sealed class SettingsForm : Form
     private readonly CheckBox _autoScale;
     private readonly CheckBox _showText;
     private readonly CheckBox _showBackdrop;
+    private readonly CheckBox _crispText;
     private readonly CheckBox _startWithWindows;
     private readonly CheckBox _bold;
     private readonly CheckBox _italic;
@@ -155,6 +156,16 @@ internal sealed class SettingsForm : Form
 
         _showBackdrop = new CheckBox { Text = "Tint behind the widget", Checked = config.ShowBackdrop, AutoSize = true };
 
+        _crispText = new CheckBox
+        {
+            Text = "Crisp text like the clock",
+            Checked = config.CrispText,
+            AutoSize = true,
+            AccessibleDescription = "Draws subpixel (ClearType) glyphs on an opaque plate, "
+                + "the way the taskbar clock is drawn. The plate hides the taskbar behind "
+                + "the widget, so it is off by default.",
+        };
+
         _backdropOpacity = new NumericUpDown
         {
             Minimum = 0,
@@ -202,6 +213,7 @@ internal sealed class SettingsForm : Form
         AddRow(look, "Segment gap (px):", _segmentGap);
         AddRow(look, "Font size (pt):", _fontSize);
         AddRow(look, "Text:", _showText);
+        AddRow(look, "Sharpness:", _crispText);
 
         var colours = CreateGroup("Colours and behaviour");
         AddRow(colours, "Download colour:", _downloadColorButton);
@@ -277,14 +289,35 @@ internal sealed class SettingsForm : Form
         foreach (Control input in new Control[]
         {
             _style, _sortOrder, _fontFamily, _bold, _italic, _roundedBars, _accentGlow,
-            _showText, _showBackdrop, _barThickness, _segmentGap, _fontSize,
+            _showText, _showBackdrop, _crispText, _barThickness, _segmentGap, _fontSize,
             _nudgeX, _nudgeY, _offsetFromTray, _nudgeLeft, _nudgeRight, _nudgeUp, _nudgeDown, _resetNudge,
         })
         {
             WireForPreview(input);
         }
 
+        // Crisping means an opaque plate, so the tint controls follow it rather than
+        // silently disagreeing with what the renderer does.
+        _crispText.CheckedChanged += (_, _) => ApplyCrispCoupling();
+        ApplyCrispCoupling();
+
         RefreshPreview();
+    }
+
+    /// <summary>
+    /// Keeps the tint controls honest while crisp text is on: the plate is forced opaque,
+    /// so the opacity spinner shows 255 and is locked rather than pretending to apply.
+    /// </summary>
+    private void ApplyCrispCoupling()
+    {
+        bool crisp = _crispText.Checked;
+        if (crisp)
+        {
+            _showBackdrop.Checked = true;
+            _backdropOpacity.Value = WidgetRenderer.OpaqueAlpha;
+        }
+
+        _backdropOpacity.Enabled = !crisp;
     }
 
     /// <summary>The normalised settings the user accepted.</summary>
@@ -322,6 +355,7 @@ internal sealed class SettingsForm : Form
             FontItalic = _italic.Checked,
             RoundedBars = _roundedBars.Checked,
             AccentGlow = _accentGlow.Checked,
+            CrispText = _crispText.Checked,
         }.Normalize();
     }
 

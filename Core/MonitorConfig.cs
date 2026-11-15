@@ -79,6 +79,14 @@ internal sealed class MonitorConfig
     public bool AccentGlow { get; set; }
 
     /// <summary>
+    /// Render the speeds the way the clock is rendered: subpixel (ClearType) glyphs on
+    /// a fully opaque plate. Off by default because the plate necessarily hides the
+    /// taskbar behind the widget; on, it is the only way to get identical sharpness,
+    /// since ClearType needs an opaque background to compute its colour fringes.
+    /// </summary>
+    public bool CrispText { get; set; }
+
+    /// <summary>
     /// Default on: the whole point is a monitor that is always there. It is a
     /// per-user HKCU\...\Run entry, not a Windows service (see StartupRegistration).
     /// </summary>
@@ -130,6 +138,7 @@ internal sealed class MonitorConfig
         FontItalic = FontItalic,
         RoundedBars = RoundedBars,
         AccentGlow = AccentGlow,
+        CrispText = CrispText,
         StartWithWindows = StartWithWindows,
     };
 
@@ -165,6 +174,7 @@ internal sealed class MonitorConfig
         FontItalic = other.FontItalic;
         RoundedBars = other.RoundedBars;
         AccentGlow = other.AccentGlow;
+        CrispText = other.CrispText;
         StartWithWindows = other.StartWithWindows;
         Normalize();
     }

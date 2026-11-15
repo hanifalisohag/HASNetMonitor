@@ -51,6 +51,14 @@ internal readonly record struct WidgetLayout(
 
     /// <summary>Empty space between the blocks of a segmented style.</summary>
     public int SegmentGap { get; init; }
+
+    /// <summary>
+    /// Height of the em box in whole pixels. Glyphs are built from this integer, never
+    /// from the fractional point size: GDI+ can only snap stems onto pixel columns when
+    /// the em size is whole, and a fractional one smears every stem across two columns
+    /// at uneven weights, which is what makes small text look soft.
+    /// </summary>
+    public int FontEmPixels { get; init; } = 1;
 }
 
 /// <summary>
@@ -67,13 +75,46 @@ internal sealed class WidgetRenderer
     public const float MinimumFontSizePt = 6f;
 
     /// <summary>
-    /// How glyphs are rasterised. Grid-fitted antialiasing, not plain AntiAlias: at
-    /// taskbar sizes the stems land on whole pixels and read as even strokes, which is
-    /// what the clock beside the widget looks like. Subpixel (ClearType) rendering is
-    /// not available here - it needs an opaque background, and this bitmap is
-    /// transparent by design - so grid-fit greyscale is the closest equivalent.
+    /// Points to pixels at the 96 dpi that GraphicsUnit.Point implies, so a point size
+    /// can be turned into a whole-pixel em size.
+    /// </summary>
+    public const double PixelsPerPoint = 96.0 / 72.0;
+
+    /// <summary>Alpha of a fully opaque plate; the value ClearType needs under glyphs.</summary>
+    public const int OpaqueAlpha = 255;
+
+    /// <summary>
+    /// The whole-pixel em size for a point size. Rounding here rather than letting GDI+
+    /// scale a fractional point size is what keeps the stems crisp: the shrink loop then
+    /// steps 12, 11, 10 px instead of drifting through 10.60, 11.71, 13.21.
+    /// </summary>
+    public static int FontEmPixels(float points, float scale)
+    {
+        if (scale <= 0 || float.IsNaN(scale) || float.IsInfinity(scale))
+        {
+            scale = 1f;
+        }
+
+        double pixels = points * scale * PixelsPerPoint;
+        return Math.Max(1, (int)Math.Round(pixels, MidpointRounding.AwayFromZero));
+    }
+
+    /// <summary>
+    /// How glyphs are rasterised on the transparent surface: grid-fitted greyscale.
+    /// ClearType cannot be used here because the bitmap is transparent by design, so
+    /// GDI+ has no background to compute subpixel fringes against - see
+    /// <see cref="CrispHint"/> for the mode that does have one.
     /// </summary>
     public const TextRenderingHint GlyphHint = TextRenderingHint.AntiAliasGridFit;
+
+    /// <summary>
+    /// Subpixel rendering, which is what the clock itself uses. GDI+ only computes the
+    /// colour fringes correctly when it knows what sits behind the glyphs, so this is
+    /// used solely over the opaque plate that <see cref="MonitorConfig.CrispText"/>
+    /// paints first. Without that plate the fringes are baked against black and the
+    /// glyphs pick up a dark halo instead of sharpening.
+    /// </summary>
+    public const TextRenderingHint CrispHint = TextRenderingHint.ClearTypeGridFit;
 
     /// <summary>
     /// Near-invisible wash covering the whole widget. Layered windows only receive
@@ -97,6 +138,11 @@ internal sealed class WidgetRenderer
         int maxHeightPx = maxHeight > 0 ? maxHeight : (int)Math.Round(48 * scale);
 
         float points = (float)Numeric.Clamp(config.FontSizePt, MinimumFontSizePt, 20);
+
+        // The search runs on whole-pixel em sizes, floor included, so every size it can
+        // settle on is one GDI+ can grid-fit exactly.
+        int emPixels = FontEmPixels(points, scale);
+        int floorEmPixels = Math.Min(emPixels, FontEmPixels(MinimumFontSizePt, scale));
         int barThickness = Math.Max(1, (int)Math.Round(Numeric.Clamp(config.BarThicknessPx, 1, MonitorConfig.MaxBarThicknessPx) * scale));
         int paddingX = Math.Max(2, (int)Math.Round(4 * scale));
         int paddingY = Math.Max(1, (int)Math.Round(1 * scale));
@@ -110,7 +156,7 @@ internal sealed class WidgetRenderer
 
         for (int attempt = 0; ; attempt++)
         {
-            using Font font = CreateFont(points, scale, config);
+            using Font font = CreateFont(emPixels, config);
             int textHeight = Math.Max(1, (int)Math.Ceiling(font.GetHeight(measureGraphics)));
             int contentWidth = Math.Max(1, (int)Math.Ceiling(MeasureWidestProbe(measureGraphics, font, scale)));
 
@@ -140,23 +186,34 @@ internal sealed class WidgetRenderer
             }
 
             bool tooTall = height > maxHeightPx;
-            float next = Math.Max(MinimumFontSizePt, points * 0.94f);
-            bool canShrink = tooTall && next < points - 0.01f && attempt < 24;
+            bool canShrink = tooTall && emPixels > floorEmPixels && attempt < 64;
             if (canShrink)
             {
-                points = next;
+                // One pixel at a time: the next size down must still be a whole size.
+                emPixels--;
                 continue;
             }
+
+            // Reported in points for the self-test and the docs, but it is the pixel
+            // size that the font is actually built from. Hitting the floor reports the
+            // documented minimum exactly rather than a rounded-off approximation of it.
+            float reportedPoints = emPixels <= floorEmPixels
+                ? MinimumFontSizePt
+                : (float)(emPixels / (PixelsPerPoint * scale));
 
             WidgetLayout layout = vertical
                 ? BuildSidebarLayout(
                     config, style, uploadOnTop, new Size(width, height), contentWidth, textHeight,
-                    barThickness, barGap, points, paddingX, paddingY, rowGap, scale, maxHeightPx)
+                    barThickness, barGap, reportedPoints, paddingX, paddingY, rowGap, scale, maxHeightPx)
                 : BuildRowsLayout(
                     style, uploadOnTop, new Size(width, height), contentWidth, textHeight,
-                    barThickness, barGap, points, paddingX, paddingY, rowGap, scale, maxHeightPx);
+                    barThickness, barGap, reportedPoints, paddingX, paddingY, rowGap, scale, maxHeightPx);
 
-            return layout with { SegmentGap = segmentGap };
+            return layout with
+            {
+                SegmentGap = segmentGap,
+                FontEmPixels = emPixels,
+            };
         }
     }
 
@@ -479,20 +536,27 @@ internal sealed class WidgetRenderer
         graphics.Clear(Color.Transparent);
         graphics.SmoothingMode = SmoothingMode.None;
 
-        // Grid-fit antialiasing, not plain AntiAlias: at taskbar sizes the glyph stems
-        // land on whole pixels and read as even strokes, the way the clock does. Plain
-        // AntiAlias softens every stem in both directions and looks washed out beside it.
-        graphics.TextRenderingHint = GlyphHint;
+        // Grid-fit greyscale on the transparent surface; ClearType once there is an
+        // opaque plate under the glyphs to compute the fringes against.
+        bool opaquePlate = config.CrispText
+            || (config.ShowBackdrop && config.BackdropOpacity >= OpaqueAlpha);
+        graphics.TextRenderingHint = opaquePlate ? CrispHint : GlyphHint;
 
         using (var hitWash = new SolidBrush(Color.FromArgb(HitWashAlpha, 255, 255, 255)))
         {
             graphics.FillRectangle(hitWash, new Rectangle(Point.Empty, layout.Size));
         }
 
-        if (config.ShowBackdrop && config.BackdropOpacity > 0)
+        if ((config.ShowBackdrop && config.BackdropOpacity > 0) || config.CrispText)
         {
-            int radius = Math.Max(1, (int)Math.Round(5 * layout.Scale));
-            using var backdrop = new SolidBrush(theme.BackdropColor((byte)Numeric.Clamp(config.BackdropOpacity, 0, 255)));
+            // The crisp mode needs a genuinely opaque plate, whatever the tint slider
+            // says: a half-transparent one would leave the ClearType fringes computed
+            // against the wrong colour, which shows up as a dark halo around the glyphs.
+            byte alpha = (byte)(config.CrispText
+                ? OpaqueAlpha
+                : Numeric.Clamp(config.BackdropOpacity, 0, OpaqueAlpha));
+            int radius = (int)CornerRadius(layout.Scale);
+            using var backdrop = new SolidBrush(theme.BackdropColor(alpha));
             using GraphicsPath path = CreateRoundedPath(new Rectangle(Point.Empty, layout.Size), radius);
             graphics.FillPath(backdrop, path);
         }
@@ -533,7 +597,7 @@ internal sealed class WidgetRenderer
         using var textBrush = new SolidBrush(theme.TextColor);
         using var downloadBrush = new SolidBrush(config.DownloadColor);
         using var uploadBrush = new SolidBrush(config.UploadColor);
-        using Font font = CreateFont(layout.FontSizePoints, layout.Scale, config);
+        using Font font = CreateFont(layout.FontEmPixels, config);
         using StringFormat format = CreateTightFormat();
 
         // The arrow of each row is drawn in that row's traffic colour, so the direction
@@ -899,22 +963,30 @@ internal sealed class WidgetRenderer
     private static Rectangle BottomSlice(Rectangle source, int height)
         => new(source.X, source.Bottom - height, source.Width, height);
 
-    private static Font CreateFont(float points, float scale, MonitorConfig? config = null)
+    /// <summary>Corner radius of the backdrop plate, in device pixels.</summary>
+    internal static float CornerRadius(float scale) => Math.Max(1f, (float)Math.Round(5 * scale));
+
+    /// <summary>
+    /// Builds the font from a whole-pixel em size. GraphicsUnit.Pixel with an integer is
+    /// the point of this: a point size times a display scale almost never lands on a
+    /// whole pixel, and the leftover fraction is what stops GDI+ from grid-fitting stems.
+    /// </summary>
+    internal static Font CreateFont(int emPixels, MonitorConfig? config = null)
     {
-        float size = Math.Max(points * scale, MinimumFontSizePt);
+        int size = Math.Max(1, emPixels);
         string family = FontCatalog.Resolve(config?.FontFamily);
         FontStyle style = FontCatalog.StyleFor(config?.FontBold ?? false, config?.FontItalic ?? false);
 
         try
         {
-            return new Font(family, size, style, GraphicsUnit.Point);
+            return new Font(family, size, style, GraphicsUnit.Pixel);
         }
         catch (ArgumentException)
         {
             // A family that reports itself installed but has no such style, e.g. a
             // bold-only display font: fall back to the plain face rather than throw
             // on the render thread.
-            return new Font(family, size, FontStyle.Regular, GraphicsUnit.Point);
+            return new Font(family, size, FontStyle.Regular, GraphicsUnit.Pixel);
         }
     }
 

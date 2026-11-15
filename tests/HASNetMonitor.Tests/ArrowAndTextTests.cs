@@ -213,7 +213,7 @@ public class ArrowAndTextTests
 
         using var surface = new Bitmap(1, 1);
         using Graphics graphics = Graphics.FromImage(surface);
-        using Font font = new Font(FontCatalog.Resolve(config.FontFamily), layout.FontSizePoints);
+        using Font font = WidgetRenderer.CreateFont(layout.FontEmPixels, config);
         using StringFormat format = new StringFormat(StringFormat.GenericTypographic);
 
         // The widest figure we can produce must still fit after the arrow and gap.

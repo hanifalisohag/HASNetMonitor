@@ -31,9 +31,10 @@ internal static class TaskbarPreview
         {
             graphics.SmoothingMode = SmoothingMode.AntiAlias;
 
-            // Same hint as the widget, so the mock clock and the widget's own glyphs are
-            // rasterised alike and the font can honestly be judged here.
-            graphics.TextRenderingHint = WidgetRenderer.GlyphHint;
+            // This canvas is opaque, so the mock clock can use the same subpixel rendering
+            // the real clock does. That makes it an honest reference: the widget image is
+            // composited in below, so whatever sharpness it has is what the user sees.
+            graphics.TextRenderingHint = TextRenderingHint.ClearTypeGridFit;
 
             var strip = new Rectangle(0, 0, picture.Width, picture.Height);
             using (var backdrop = new LinearGradientBrush(
@@ -50,7 +51,10 @@ internal static class TaskbarPreview
                 graphics.DrawLine(edge, 0, 0, picture.Width, 0);
             }
 
-            using (var clockFont = new Font(FontCatalog.Resolve(FontCatalog.Automatic), 9.5f))
+            // Whole-pixel em size, exactly as the widget builds its own font, so the
+            // comparison the preview invites is not skewed by the clock being softer.
+            int clockEmPixels = WidgetRenderer.FontEmPixels(9.5f, 1f);
+            using (Font clockFont = WidgetRenderer.CreateFont(clockEmPixels))
             using (var clockBrush = new SolidBrush(Color.FromArgb(220, 235, 235, 235)))
             {
                 const string Clock = "10:42";

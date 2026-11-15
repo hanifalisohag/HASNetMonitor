@@ -223,6 +223,7 @@ repaired on load — out-of-range values are clamped, unknown style names fall b
 | `ShowText` | `true` | `true`/`false` |
 | `ShowBackdrop` | `false` | `true`/`false` |
 | `BackdropOpacity` | `120` | 0–255 |
+| `CrispText` | `false` | `true`/`false` |
 | `BarThicknessPx` | `3` | 1–24 |
 | `SegmentGapPx` | `2` | 0–12 |
 | `FontSizePt` | `9` | 6–20 |
@@ -259,13 +260,24 @@ When text is on, each row is the direction arrow followed by the figure:
   arrow in the upload colour, so a row is identified before the number is read;
 - the figure itself stays in the taskbar text colour, so a dark arrow colour can never
   make the speed unreadable;
+- glyphs are built from a whole-pixel em size, so their stems land on pixel columns and
+  stay even at every taskbar height and display scale;
 - glyphs are rasterised with grid-fitted antialiasing, the same treatment the taskbar
-  clock gets, so the strokes stay even and crisp beside it. Subpixel (ClearType)
-  rendering is not possible here: it needs an opaque background, and the widget's
+  clock gets. Subpixel (ClearType) rendering is not possible on the default transparent
+  bitmap: it needs an opaque background to compute its colour fringes, and the widget's
   bitmap is transparent by design so the real taskbar shows through.
 
 The arrow is not part of the speed string: `SpeedFormatter.Format` returns the figure
 only, and the renderer draws the two runs side by side from the configured colours.
+
+### Sharpness: matching the clock exactly
+
+**Crisp text like the clock** (Look group, off by default) renders the glyphs with
+ClearType on a fully opaque plate, which is what makes them identical to the clock's.
+The plate is the price: it hides the taskbar behind the widget. The option forces the
+tint opaque, and the tint-opacity spinner is disabled while it is on, so the dialog
+never shows a value the renderer overrides. Setting the tint opacity to 255 by hand is
+the same thing, and also switches the glyphs to ClearType.
 
 ## Settings dialog
 
