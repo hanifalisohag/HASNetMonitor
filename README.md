@@ -13,6 +13,15 @@ shell hides or buries it.
 - Config is a plain JSON file you can edit by hand, saved automatically
 - **About** box with the version, author and contact address
 
+## Designs
+![Design 1](imgs/img_1.png)
+
+![Design 2](imgs/img_2.png)
+
+![Design 3](imgs/img_3.png)
+
+![Design 4](imgs/img_4.png)
+
 ---
 
 ## Requirements
