@@ -267,6 +267,28 @@ public class ArrowSettingTests
     }
 
     [Fact]
+    public void TheSpinnerMenuOffersTheRoundStopsAndKeepsAHandSetValue()
+    {
+        IReadOnlyList<int> stops = SettingsForm.ArrowSizeChoiceKeys(MonitorConfig.DefaultArrowSizePercent);
+        Assert.Contains(MonitorConfig.MinArrowSizePercent, stops);
+        Assert.Contains(MonitorConfig.DefaultArrowSizePercent, stops);
+        Assert.Contains(MonitorConfig.MaxArrowSizePercent, stops);
+        Assert.Equal(stops.OrderBy(p => p).ToList(), stops);
+
+        // A size typed by hand is still offered, and out-of-range values are clamped into
+        // the list rather than shown as they are.
+        Assert.Contains(142, SettingsForm.ArrowSizeChoiceKeys(142));
+        Assert.Contains(MonitorConfig.MaxArrowSizePercent, SettingsForm.ArrowSizeChoiceKeys(int.MaxValue));
+        Assert.Contains(MonitorConfig.MinArrowSizePercent, SettingsForm.ArrowSizeChoiceKeys(int.MinValue));
+
+        // Every stop the menu offers is a value the spinner accepts.
+        foreach (int stop in SettingsForm.ArrowSizeChoiceKeys(142))
+        {
+            Assert.InRange(stop, MonitorConfig.MinArrowSizePercent, MonitorConfig.MaxArrowSizePercent);
+        }
+    }
+
+    [Fact]
     public void TheSettingsDialogCarriesTheArrowChoice()
     {
         // The dialog is a spinner, so the plumbing is checked at the source: it is built

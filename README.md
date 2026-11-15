@@ -277,8 +277,10 @@ When text is on, each row is the direction arrow followed by the figure:
   the bars, or any pair of colours you like, and the arrow keeps the bar colour either way;
 - **Arrow size (×)** is a spinner: 0.5 to 3.0 in steps of 0.1, so 0.5, 0.6, 1.0 and 2.0
   are all one click apart, and the value is a multiple of a digit's *ink height* — 1.0 is
-  the figure's own size, 1.5 (the default) makes the arrow's ink half again as tall. The
-  spinner is `ArrowSizePercent` in the config file, so 1.5 there is `150`;
+  the figure's own size, 1.5 (the default) makes the arrow's ink half again as tall. Its
+  right-click menu jumps straight to the round stops (0.5×, 1×, 1.5×, 2×, 3×) and keeps any
+  other value you have set as its own entry. The spinner is `ArrowSizePercent` in the
+  config file, so 1.5 there is `150`;
 - **Arrow type** picks the marker: *Classic* ↑↓, *Solid* ▲▼, *Small* ▴▾, *Double* ⇑⇓,
   *Chevron* ⌃⌄, *Bar* (a stem and head drawn as a shape, not a glyph) or *None*. A family
   that lacks the chosen code point falls back to the classic arrows, because a missing

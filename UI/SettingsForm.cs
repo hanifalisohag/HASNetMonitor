@@ -562,11 +562,12 @@ internal sealed class SettingsForm : Form
     /// The arrow-size spinner. It steps in tenths of the figure's size, so 0.5, 0.6, 1,
     /// 2 and anything in between are all reachable by typing or by the arrows, and it
     /// never offers a value outside <see cref="MonitorConfig.ArrowSizePercent"/>'s bounds.
+    /// Its right-click menu jumps to the round stops instead of stepping one at a time.
     /// </summary>
     private static NumericUpDown CreateArrowSizeBox(int selectedPercent)
     {
         int percent = Numeric.Clamp(selectedPercent, MonitorConfig.MinArrowSizePercent, MonitorConfig.MaxArrowSizePercent);
-        return new NumericUpDown
+        var box = new NumericUpDown
         {
             Minimum = MonitorConfig.MinArrowSizePercent / 100m,
             Maximum = MonitorConfig.MaxArrowSizePercent / 100m,
@@ -577,6 +578,45 @@ internal sealed class SettingsForm : Form
             AccessibleDescription = "How tall the direction arrow is drawn, as a multiple of "
                 + "the figure's size: 1 is the same size, 0.5 is half, 2 is twice.",
         };
+
+        var menu = new ContextMenuStrip();
+        foreach (int stop in ArrowSizeChoiceKeys(percent))
+        {
+            var item = new ToolStripMenuItem($"{stop / 100.0:0.0}x");
+            int target = stop;
+            item.Click += (_, _) =>
+                box.Value = Numeric.Clamp(target, MonitorConfig.MinArrowSizePercent, MonitorConfig.MaxArrowSizePercent) / 100m;
+            menu.Items.Add(item);
+        }
+
+        box.ContextMenuStrip = menu;
+        return box;
+    }
+
+    /// <summary>
+    /// The round stops the spinner's menu offers, plus the value it is on if that is not
+    /// one of them, so a size set by hand is never dropped from the list. Sorted and
+    /// clamped, because the menu shows them in order and never outside the bounds.
+    /// </summary>
+    internal static IReadOnlyList<int> ArrowSizeChoiceKeys(int selected)
+    {
+        int current = Numeric.Clamp(selected, MonitorConfig.MinArrowSizePercent, MonitorConfig.MaxArrowSizePercent);
+
+        var stops = new List<int>
+        {
+            MonitorConfig.MinArrowSizePercent,
+            MonitorConfig.DefaultArrowSizePercent,
+            2 * MonitorConfig.DefaultArrowSizePercent,
+            MonitorConfig.MaxArrowSizePercent,
+        };
+
+        if (!stops.Contains(current))
+        {
+            stops.Add(current);
+        }
+
+        stops.Sort();
+        return stops;
     }
 
     private int SelectedArrowSize()
