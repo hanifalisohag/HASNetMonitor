@@ -298,7 +298,7 @@ public class ArrowSettingTests
 
         Assert.Contains("ArrowSizePercent = SelectedArrowSize()", source, StringComparison.Ordinal);
         Assert.Contains("CreateArrowSizeBox(config.ArrowSizePercent)", source, StringComparison.Ordinal);
-        Assert.Contains("AddRow(look, \"Arrow size (x):\", _arrowSize)", source, StringComparison.Ordinal);
+        Assert.Contains("AddRow(look, \"Arrow size:\", _arrowSize)", source, StringComparison.Ordinal);
         Assert.Contains("Increment = MonitorConfig.ArrowSizeStep / 100m", source, StringComparison.Ordinal);
     }
 }

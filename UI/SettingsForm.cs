@@ -223,7 +223,7 @@ internal sealed class SettingsForm : Form
         AddRow(look, "Style:", _style);
         AddRow(look, "Stacking:", _sortOrder);
         AddRow(look, "Font:", _fontFamily);
-        AddRow(look, "Arrow size (x):", _arrowSize);
+        AddRow(look, "Arrow size:", _arrowSize);
         AddRow(look, "Arrow type:", _arrowStyle);
         AddRow(look, string.Empty, Combine(_bold, _italic));
         AddRow(look, "Bar shape:", Combine(_roundedBars, _accentGlow));
