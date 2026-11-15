@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Globalization;
 using HASNetMonitor.Core;
 using HASNetMonitor.Rendering;
 
@@ -48,6 +49,7 @@ internal sealed class SettingsForm : Form
     private readonly ComboBox _style;
     private readonly ComboBox _sortOrder;
     private readonly ComboBox _fontFamily;
+    private readonly ComboBox _arrowSize;
     private readonly PictureBox _preview;
     private readonly Label _previewError;
 
@@ -194,6 +196,7 @@ internal sealed class SettingsForm : Form
         ], StackOrder.Normalize(config.SortOrder));
 
         _fontFamily = CreateFontBox(config.FontFamily);
+        _arrowSize = CreateArrowSizeBox(config.ArrowSizePercent);
 
         _bold = new CheckBox { Text = "Bold", Checked = config.FontBold, AutoSize = true };
         _italic = new CheckBox { Text = "Italic", Checked = config.FontItalic, AutoSize = true };
@@ -210,6 +213,7 @@ internal sealed class SettingsForm : Form
         AddRow(look, "Style:", _style);
         AddRow(look, "Stacking:", _sortOrder);
         AddRow(look, "Font:", _fontFamily);
+        AddRow(look, "Arrow size:", _arrowSize);
         AddRow(look, string.Empty, Combine(_bold, _italic));
         AddRow(look, "Bar shape:", Combine(_roundedBars, _accentGlow));
         AddRow(look, "Bar thickness (px):", _barThickness);
@@ -292,7 +296,7 @@ internal sealed class SettingsForm : Form
 
         foreach (Control input in new Control[]
         {
-            _style, _sortOrder, _fontFamily, _bold, _italic, _roundedBars, _accentGlow,
+            _style, _sortOrder, _fontFamily, _arrowSize, _bold, _italic, _roundedBars, _accentGlow,
             _showText, _showBackdrop, _crispText, _sharedScale, _barThickness, _segmentGap, _fontSize,
             _nudgeX, _nudgeY, _offsetFromTray, _nudgeLeft, _nudgeRight, _nudgeUp, _nudgeDown, _resetNudge,
         })
@@ -356,6 +360,7 @@ internal sealed class SettingsForm : Form
             Style = SelectedKey(_style, WidgetStyles.Bars),
             SortOrder = SelectedKey(_sortOrder, StackOrder.DownloadFirst),
             FontFamily = SelectedKey(_fontFamily, FontCatalog.Automatic),
+            ArrowSizePercent = SelectedArrowSize(),
             FontBold = _bold.Checked,
             FontItalic = _italic.Checked,
             RoundedBars = _roundedBars.Checked,
@@ -530,6 +535,60 @@ internal sealed class SettingsForm : Form
 
         return combo;
     }
+
+    /// <summary>
+    /// The arrow-size presets, as percentages. A stored percentage that is not one of them
+    /// keeps its own entry, so a hand-edited config is honoured instead of being silently
+    /// reset.
+    /// </summary>
+    internal static IReadOnlyList<int> ArrowSizeChoiceKeys(int selected)
+    {
+        int percent = Numeric.Clamp(selected, MonitorConfig.MinArrowSizePercent, MonitorConfig.MaxArrowSizePercent);
+        var presets = new List<int> { 100, MonitorConfig.DefaultArrowSizePercent, 200, MonitorConfig.MaxArrowSizePercent };
+
+        if (!presets.Contains(percent))
+        {
+            presets.Add(percent);
+        }
+
+        presets.Sort();
+        return presets;
+    }
+
+    private static string DescribeArrowSize(int percent) => percent switch
+    {
+        100 => "Same as the figure",
+        MonitorConfig.DefaultArrowSizePercent => "Larger (default)",
+        200 => "Twice the figure",
+        MonitorConfig.MaxArrowSizePercent => "Huge",
+        _ => $"Custom ({percent.ToString(CultureInfo.InvariantCulture)}%)",
+    };
+
+    private static ComboBox CreateArrowSizeBox(int selectedPercent)
+    {
+        int percent = Numeric.Clamp(selectedPercent, MonitorConfig.MinArrowSizePercent, MonitorConfig.MaxArrowSizePercent);
+
+        var combo = new ComboBox
+        {
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Width = 230,
+            AccessibleDescription = "How tall the direction arrow is drawn beside the figure.",
+        };
+
+        foreach (int choice in ArrowSizeChoiceKeys(percent))
+        {
+            combo.Items.Add(new Choice(choice.ToString(CultureInfo.InvariantCulture), DescribeArrowSize(choice)));
+        }
+
+        combo.SelectedIndex = IndexOfChoice(combo, percent.ToString(CultureInfo.InvariantCulture));
+        return combo;
+    }
+
+    private int SelectedArrowSize()
+        => _arrowSize.SelectedItem is Choice choice
+            && int.TryParse(choice.Key, NumberStyles.Integer, CultureInfo.InvariantCulture, out int percent)
+            ? Numeric.Clamp(percent, MonitorConfig.MinArrowSizePercent, MonitorConfig.MaxArrowSizePercent)
+            : MonitorConfig.DefaultArrowSizePercent;
 
     private static int IndexOfChoice(ComboBox combo, string key)
     {

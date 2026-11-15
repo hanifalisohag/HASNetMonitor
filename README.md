@@ -229,6 +229,7 @@ repaired on load — out-of-range values are clamped, unknown style names fall b
 | `ShowBackdrop` | `false` | `true`/`false` |
 | `BackdropOpacity` | `120` | 0–255 |
 | `CrispText` | `false` | `true`/`false` |
+| `ArrowSizePercent` | `150` | 100–300, arrow ink height against a digit's |
 | `BarThicknessPx` | `3` | 1–24 |
 | `SegmentGapPx` | `2` | 0–12 |
 | `FontSizePt` | `9` | 6–20 |
@@ -265,11 +266,19 @@ When text is on, each row is the direction arrow followed by the figure:
   arrow in the upload colour, so a row is identified before the number is read;
 - the figure itself stays in the taskbar text colour, so a dark arrow colour can never
   make the speed unreadable;
-- the arrow is drawn one size up from the figure. U+2191/U+2193 are drawn shorter than the
-  digits in every UI font — 8.1 px against 8.7 at a 12 px em — so an arrow at the figure's
-  own size read as a small tick beside the number. The renderer measures the digit and
-  arrow ink once per font family and scales the arrow until its ink is at least as tall as
-  a digit's, capped at 1.6× so an odd font cannot produce a huge arrow;
+- **Arrow size** is a setting: **Look → Arrow size**, offering *Same as the figure* (100%),
+  *Larger (default, 150%)*, *Twice the figure* (200%) and *Huge* (300%), and keeping any
+  other percentage set by hand as its own entry instead of resetting it. The percentage is
+  of a digit's ink height, so 150% means the arrow's ink is half again as tall as a digit's.
+  U+2191/U+2193 are drawn shorter than the digits in every UI font — 8.1 px against 8.7 at
+  a 12 px em — which is why an arrow at the figure's own size read as a small tick; the
+  renderer measures a family's digit-to-arrow ratio once and folds it into the setting;
+- the arrow is **capped by its row**: it may grow until its ink fills the row the figure
+  sits in, and not one pixel further, so a tall arrow never runs into the bar beneath it or
+  costs the figure a font size. At the default 48 px taskbar a 12 px figure carries an
+  18 px arrow;
+- the arrow is drawn at 254/255 opacity, one step under the figure, so the number always
+  remains the most solid ink in its row — the arrow is the direction marker, not the reading;
 - glyphs are built from a whole-pixel em size, so their stems land on pixel columns and
   stay even at every taskbar height and display scale;
 - glyphs are rasterised with grid-fitted antialiasing, the same treatment the taskbar
@@ -279,7 +288,8 @@ When text is on, each row is the direction arrow followed by the figure:
 
 The arrow is not part of the speed string: `SpeedFormatter.Format` returns the figure
 only, and the renderer draws the two runs side by side from the configured colours, each
-with its own font — the arrow's one size up, centred on the same line as the figure.
+with its own font — the arrow at the configured size, centred on its own ink so the
+arrowhead lands on the figure's line.
 
 ### How the two bars are scaled
 

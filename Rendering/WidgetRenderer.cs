@@ -61,6 +61,14 @@ internal readonly record struct WidgetLayout(
     /// at uneven weights, which is what makes small text look soft.
     /// </summary>
     public int FontEmPixels { get; init; } = 1;
+
+    /// <summary>
+    /// The arrow percentage this layout actually reserved room for. Usually the setting;
+    /// lower when the taskbar was too short for both the figure and the bigger arrow, in
+    /// which case the arrow yields rather than the widget overflowing. Drawing must use
+    /// this value, not the config, or the arrow would be clipped by the room it left.
+    /// </summary>
+    public int ArrowSizePercent { get; init; } = MonitorConfig.DefaultArrowSizePercent;
 }
 
 /// <summary>
@@ -136,6 +144,9 @@ internal sealed class WidgetRenderer
     /// </summary>
     private static readonly ConcurrentDictionary<string, double> ArrowRatios = new();
 
+    /// <summary>Arrow ink height per em pixel, measured per family and style.</summary>
+    private static readonly ConcurrentDictionary<string, double> ArrowInkRatios = new();
+
     public WidgetLayout ComputeLayout(MonitorConfig config, float scale, int maxHeight)
     {
         if (scale <= 0 || float.IsNaN(scale) || float.IsInfinity(scale))
@@ -162,6 +173,11 @@ internal sealed class WidgetRenderer
         int segmentGap = Math.Max(0, (int)Math.Round(Numeric.Clamp(config.SegmentGapPx, 0, MonitorConfig.MaxSegmentGapPx) * scale));
         bool vertical = WidgetStyles.IsVertical(style);
 
+        int arrowPercent = Numeric.Clamp(
+            config.ArrowSizePercent,
+            MonitorConfig.MinArrowSizePercent,
+            MonitorConfig.MaxArrowSizePercent);
+
         using var measureSurface = new Bitmap(1, 1, PixelFormat.Format32bppPArgb);
         using var measureGraphics = Graphics.FromImage(measureSurface);
 
@@ -169,7 +185,7 @@ internal sealed class WidgetRenderer
         {
             using Font font = CreateFont(emPixels, config);
             int textHeight = Math.Max(1, (int)Math.Ceiling(font.GetHeight(measureGraphics)));
-            int contentWidth = Math.Max(1, (int)Math.Ceiling(MeasureWidestProbe(measureGraphics, font, scale)));
+            int contentWidth = Math.Max(1, (int)Math.Ceiling(MeasureWidestProbe(measureGraphics, font, scale, arrowPercent, textHeight)));
 
             int height;
             int width;
@@ -224,6 +240,7 @@ internal sealed class WidgetRenderer
             {
                 SegmentGap = segmentGap,
                 FontEmPixels = emPixels,
+                ArrowSizePercent = arrowPercent,
             };
         }
     }
@@ -613,8 +630,8 @@ internal sealed class WidgetRenderer
 
         // The arrow of each row is drawn in that row's traffic colour, so the direction
         // reads at a glance; only the figure itself uses the text colour.
-        DrawRowText(graphics, font, format, layout.DownloadText, downloadBrush, textBrush, isDownload: true, visual.DownloadBytesPerSecond, layout.Scale);
-        DrawRowText(graphics, font, format, layout.UploadText, uploadBrush, textBrush, isDownload: false, visual.UploadBytesPerSecond, layout.Scale);
+        DrawRowText(graphics, font, format, layout.DownloadText, config.DownloadColor, textBrush, isDownload: true, visual.DownloadBytesPerSecond, layout.Scale, layout.ArrowSizePercent);
+        DrawRowText(graphics, font, format, layout.UploadText, config.UploadColor, textBrush, isDownload: false, visual.UploadBytesPerSecond, layout.Scale, layout.ArrowSizePercent);
     }
 
     /// <summary>The classic look: solid tracks with a solid fill from the left.</summary>
@@ -916,16 +933,24 @@ internal sealed class WidgetRenderer
         }
     }
 
+    /// <summary>
+    /// The arrow is drawn a single step under full opacity. It is a direction marker, not
+    /// the reading itself, so the figure stays the most solid ink in the row; at 254/255
+    /// the difference is invisible, and it keeps the arrow from ever out-weighing a digit.
+    /// </summary>
+    private const int ArrowInkAlpha = 254;
+
     private static void DrawRowText(
         Graphics graphics,
         Font font,
         StringFormat format,
         Rectangle bounds,
-        Brush arrowBrush,
+        Color arrowColor,
         Brush textBrush,
         bool isDownload,
         double bytesPerSecond,
-        float scale)
+        float scale,
+        int arrowSizePercent)
     {
         if (bounds.Width <= 0 || bounds.Height <= 0)
         {
@@ -935,19 +960,22 @@ internal sealed class WidgetRenderer
         float textHeight = font.GetHeight(graphics);
         float top = bounds.Y + (bounds.Height - textHeight) / 2f;
 
-        // The arrow has its own font, one size up so its ink matches the digits, and it
-        // is centred on its own em box: aligning the two em boxes keeps the arrowhead on
-        // the same optical line as the figure instead of hanging below it.
-        using (Font arrowFont = CreateArrowFont(font))
+        // The arrow has its own font, scaled by the user's setting and by the family's
+        // glyph correction, and it is centred on its ink box rather than its em box: the
+        // em box is much taller than the glyph, so em-centring would hang the arrowhead
+        // below the figure's line and cost vertical room the row does not have. The row is
+        // the figure's own row, so the ink cap keeps the arrow inside it.
+        using (Font arrowFont = CreateArrowFont(font, arrowSizePercent, bounds.Height))
+        using (var arrowBrush = new SolidBrush(Color.FromArgb(ArrowInkAlpha, arrowColor)))
         {
-            float arrowHeight = arrowFont.GetHeight(graphics);
-            float arrowTop = bounds.Y + (bounds.Height - arrowHeight) / 2f;
-            graphics.DrawString(SpeedFormatter.ArrowFor(isDownload), arrowFont, arrowBrush, bounds.X, arrowTop, format);
+            string glyph = SpeedFormatter.ArrowFor(isDownload);
+            float arrowTop = InkCentredTop(graphics, arrowFont, format, glyph, bounds);
+            graphics.DrawString(glyph, arrowFont, arrowBrush, bounds.X, arrowTop, format);
         }
 
         // The figure starts after the arrow and its gap, at the exact distance the
         // width measurement reserves for it.
-        float numberX = bounds.X + RowNumberOffset(graphics, font, format, scale);
+        float numberX = bounds.X + RowNumberOffset(graphics, font, format, scale, arrowSizePercent, bounds.Height);
         graphics.DrawString(SpeedFormatter.Format(bytesPerSecond), font, textBrush, numberX, top, format);
     }
 
@@ -955,10 +983,16 @@ internal sealed class WidgetRenderer
     /// Distance from a row's left edge to the first glyph of the figure: the arrow,
     /// widened for antialiasing, plus the gap after it.
     /// </summary>
-    public static float RowNumberOffset(Graphics graphics, Font font, StringFormat format, float scale)
+    public static float RowNumberOffset(
+        Graphics graphics,
+        Font font,
+        StringFormat format,
+        float scale,
+        int arrowSizePercent = MonitorConfig.DefaultArrowSizePercent,
+        float rowHeight = 0)
     {
         float arrow;
-        using (Font arrowFont = CreateArrowFont(font))
+        using (Font arrowFont = CreateArrowFont(font, arrowSizePercent, rowHeight))
         {
             arrow = Math.Max(
                 graphics.MeasureString(SpeedFormatter.DownloadArrow, arrowFont, PointF.Empty, format).Width,
@@ -966,6 +1000,17 @@ internal sealed class WidgetRenderer
         }
 
         return arrow + ArrowGap(scale);
+    }
+
+    /// <summary>
+    /// Height of a text row: the taller of the figure and the arrow, so a large arrow is
+    /// never clipped by the widget's edge.
+    /// </summary>
+    internal static int TextRowHeight(Graphics graphics, Font font, int arrowSizePercent)
+    {
+        float digit = font.GetHeight(graphics);
+        using Font arrowFont = CreateArrowFont(font, arrowSizePercent);
+        return Math.Max(1, (int)Math.Ceiling(Math.Max(digit, arrowFont.GetHeight(graphics))));
     }
 
     /// <summary>The small gap between a row's arrow and its figure, in scaled pixels.</summary>
@@ -1018,8 +1063,67 @@ internal sealed class WidgetRenderer
         }
     }
 
-    /// <summary>Ceiling on the arrow's growth, so an odd font cannot produce a giant arrow.</summary>
+    /// <summary>
+    /// The height of the arrow glyph's ink at a given em size, the same measurement the
+    /// row cap uses.
+    /// </summary>
+    public static double ArrowInkHeight(MonitorConfig config, int arrowEmPixels)
+    {
+        return Math.Max(1, arrowEmPixels) * ArrowInkRatio(config.FontFamily, config.FontBold, config.FontItalic);
+    }
+
+    /// <summary>
+    /// Arrow ink height per em pixel for a family: measured once from the real glyph, so
+    /// the row cap reflects the font's own proportions instead of a guessed constant.
+    /// </summary>
+    private static double ArrowInkRatio(string family, bool bold, bool italic)
+    {
+        string key = $"{family}|{bold}|{italic}";
+        if (ArrowInkRatios.TryGetValue(key, out double cached))
+        {
+            return cached;
+        }
+
+        double ratio = 0.72;
+        try
+        {
+            using var family2 = new FontFamily(family);
+            FontStyle style = (bold ? FontStyle.Bold : FontStyle.Regular)
+                | (italic ? FontStyle.Italic : FontStyle.Regular);
+            if (family2.IsStyleAvailable(style))
+            {
+                using var font = new Font(family2, ArrowProbeEmPixels, style, GraphicsUnit.Pixel);
+                using var path = new GraphicsPath();
+                path.AddString(
+                    SpeedFormatter.DownloadArrow,
+                    family2,
+                    (int)style,
+                    ArrowProbeEmPixels,
+                    PointF.Empty,
+                    StringFormat.GenericTypographic);
+                ratio = path.GetBounds().Height / ArrowProbeEmPixels;
+            }
+        }
+        catch (Exception ex) when (ex is ArgumentException or ExternalException)
+        {
+            // A family without the arrow glyph falls back to the estimate above.
+        }
+
+        ratio = ratio > 0.05 ? ratio : 0.72;
+        ArrowInkRatios[key] = ratio;
+        return ratio;
+    }
+
+    /// <summary>
+    /// Ceiling on the font-measured arrow growth, so an odd font cannot produce a giant arrow.
+    /// </summary>
     public const double MaximumArrowScale = 1.6;
+
+    /// <summary>
+    /// Ceiling on the arrow's em size relative to the figure's, whatever the setting, so
+    /// even 300% cannot push the row past the taskbar.
+    /// </summary>
+    public const double MaximumArrowTotalScale = 3.0;
 
     /// <summary>
     /// The em size the arrow is drawn at. The U+2191/U+2193 glyphs are drawn noticeably
@@ -1029,14 +1133,33 @@ internal sealed class WidgetRenderer
     /// arrow until its ink is at least as tall as a digit's, measured once per family so
     /// it is right for whichever font the user picked.
     /// </summary>
-    public static int ArrowEmPixels(int textEmPixels, MonitorConfig? config = null)
+    public static int ArrowEmPixels(int textEmPixels, MonitorConfig? config = null, float rowHeight = 0)
     {
         int size = Math.Max(1, textEmPixels);
-        double ratio = ArrowHeightRatio(
-            FontCatalog.Resolve(config?.FontFamily),
-            FontCatalog.StyleFor(config?.FontBold ?? false, config?.FontItalic ?? false));
+        string family = FontCatalog.Resolve(config?.FontFamily);
+        FontStyle style = FontCatalog.StyleFor(config?.FontBold ?? false, config?.FontItalic ?? false);
 
-        return ArrowEmFor(size, ratio);
+        return ArrowEmFor(
+            size,
+            ArrowHeightRatio(family, style),
+            config?.ArrowSizePercent ?? MonitorConfig.DefaultArrowSizePercent,
+            InkLimitEm(family, style, rowHeight));
+    }
+
+    /// <summary>
+    /// The largest em whose arrow ink still fits a row of this height. The arrow is drawn
+    /// inside the figure's row rather than in a taller one, so the row height is the hard
+    /// ceiling on how big it can get; beyond it the ink would overlap the bar below.
+    /// </summary>
+    private static int InkLimitEm(string family, FontStyle style, float rowHeight)
+    {
+        if (rowHeight <= 0 || float.IsNaN(rowHeight) || float.IsInfinity(rowHeight))
+        {
+            return int.MaxValue;
+        }
+
+        double inkRatio = ArrowInkRatio(family, style);
+        return Math.Max(1, (int)Math.Floor(rowHeight / inkRatio));
     }
 
     /// <summary>
@@ -1044,14 +1167,36 @@ internal sealed class WidgetRenderer
     /// the two always share a family and style.
     /// </summary>
     internal static Font CreateArrowFont(Font textFont)
+        => CreateArrowFont(textFont, MonitorConfig.DefaultArrowSizePercent, 0);
+
+    internal static Font CreateArrowFont(Font textFont, int arrowSizePercent, float rowHeight = 0)
     {
         int em = Math.Max(1, (int)Math.Round(textFont.Size));
-        int arrowEm = ArrowEmFor(em, ArrowHeightRatio(textFont.FontFamily.Name, textFont.Style));
-        return CreateFont(textFont.FontFamily.Name, textFont.Style, arrowEm);
+        string family = textFont.FontFamily.Name;
+        FontStyle style = textFont.Style;
+        return CreateFont(
+            family,
+            style,
+            ArrowEmFor(
+                em,
+                ArrowHeightRatio(family, style),
+                arrowSizePercent,
+                InkLimitEm(family, style, rowHeight)));
     }
 
-    private static int ArrowEmFor(int textEmPixels, double ratio)
-        => Math.Max(textEmPixels, (int)Math.Ceiling(textEmPixels * ratio));
+    /// <summary>
+    /// The arrow's em size: the figure's size, grown by the family's glyph correction and
+    /// then by the user's percentage. Never smaller than the figure, never beyond
+    /// <see cref="MaximumArrowTotalScale"/>, and never beyond what the row can hold.
+    /// </summary>
+    private static int ArrowEmFor(int textEmPixels, double ratio, int arrowSizePercent, int inkLimitEm = int.MaxValue)
+    {
+        int size = Math.Max(1, textEmPixels);
+        double percent = Numeric.Clamp(arrowSizePercent, MonitorConfig.MinArrowSizePercent, MonitorConfig.MaxArrowSizePercent) / 100.0;
+        int wanted = (int)Math.Ceiling(size * ratio * percent);
+        int ceiling = Math.Min((int)Math.Ceiling(size * MaximumArrowTotalScale), Math.Max(size, inkLimitEm));
+        return Numeric.Clamp(wanted, size, ceiling);
+    }
 
     /// <summary>
     /// Ratio of a digit's ink height to the arrow glyph's, so the arrow can be scaled to
@@ -1094,13 +1239,64 @@ internal sealed class WidgetRenderer
         return path.GetBounds().Height;
     }
 
+    private static double ArrowInkRatio(string family, FontStyle style)
+        => ArrowInkRatios.GetOrAdd($"{family}|{(int)style}", _ => MeasureArrowInkRatio(family, style));
+
+    private static double MeasureArrowInkRatio(string family, FontStyle style)
+    {
+        try
+        {
+            using var surface = new Bitmap(1, 1, PixelFormat.Format32bppPArgb);
+            using var graphics = Graphics.FromImage(surface);
+            using Font font = CreateFont(family, style, ArrowProbeEmPixels);
+            using StringFormat format = CreateTightFormat();
+
+            float arrow = InkHeight(graphics, font, format, SpeedFormatter.DownloadArrow);
+            if (arrow <= 0 || float.IsNaN(arrow))
+            {
+                return 1.0;
+            }
+
+            // Ink scales linearly with the em size, so one measurement at the probe size
+            // gives the ratio for every size the row can offer.
+            return arrow / ArrowProbeEmPixels;
+        }
+        catch (Exception ex) when (ex is ArgumentException or ExternalException)
+        {
+            return 1.0;
+        }
+    }
+
+    /// <summary>Vertical offset that centres a glyph's ink box on a row instead of its em box.</summary>
+    private static float InkCentredTop(Graphics graphics, Font font, StringFormat format, string text, Rectangle bounds)
+    {
+        RectangleF ink;
+        using (var path = new GraphicsPath())
+        {
+            path.AddString(text, font.FontFamily, (int)font.Style, font.Size, PointF.Empty, format);
+            ink = path.GetBounds();
+        }
+
+        if (ink.Height <= 0 || float.IsNaN(ink.Height))
+        {
+            return bounds.Y + ((bounds.Height - font.GetHeight(graphics)) / 2f);
+        }
+
+        return bounds.Y + ((bounds.Height - ink.Height) / 2f) - ink.Top;
+    }
+
     private static StringFormat CreateTightFormat() => new(StringFormat.GenericTypographic)
     {
         FormatFlags = StringFormatFlags.NoWrap | StringFormatFlags.NoClip,
         Trimming = StringTrimming.None,
     };
 
-    private static float MeasureWidestProbe(Graphics graphics, Font font, float scale)
+    private static float MeasureWidestProbe(
+        Graphics graphics,
+        Font font,
+        float scale,
+        int arrowSizePercent,
+        float rowHeight)
     {
         using StringFormat format = CreateTightFormat();
         float widest = 0;
@@ -1111,7 +1307,7 @@ internal sealed class WidgetRenderer
 
         // A row is the arrow and the figure drawn side by side, so its width is the
         // arrow offset plus the widest figure we can produce.
-        return RowNumberOffset(graphics, font, format, scale) + widest;
+        return RowNumberOffset(graphics, font, format, scale, arrowSizePercent, rowHeight) + widest;
     }
 
     /// <summary>

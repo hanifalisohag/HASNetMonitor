@@ -84,7 +84,12 @@ public class ArrowSizeTests
         foreach (int em in new[] { 8, 12, 20, 44 })
         {
             int arrowEm = WidgetRenderer.ArrowEmPixels(em, TextConfig());
-            Assert.True(arrowEm <= (int)Math.Ceiling(em * WidgetRenderer.MaximumArrowScale), $"em {em} gave {arrowEm}");
+
+            // The cap is on the total growth: the family correction times the user's
+            // percentage, whatever that percentage is.
+            Assert.True(
+                arrowEm <= (int)Math.Ceiling(em * WidgetRenderer.MaximumArrowTotalScale),
+                $"em {em} gave {arrowEm}");
         }
     }
 

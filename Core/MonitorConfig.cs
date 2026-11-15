@@ -22,6 +22,15 @@ internal sealed class MonitorConfig
     public const int DefaultRefreshIntervalMs = 1000;
     public const int MaxBarThicknessPx = 24;
     public const int MaxSegmentGapPx = 12;
+
+    /// <summary>
+    /// Height of the direction arrow's ink as a percentage of a digit's ink. 100 draws it
+    /// exactly as tall as the figure; the default is larger because the arrow is the thing
+    /// the eye should catch first. It never shrinks below the figure.
+    /// </summary>
+    public const int DefaultArrowSizePercent = 150;
+    public const int MinArrowSizePercent = 100;
+    public const int MaxArrowSizePercent = 300;
     public const int MaxNudgePx = 400;
     public const double MinFontSizePt = 6;
     public const double MaxFontSizePt = 20;
@@ -86,6 +95,12 @@ internal sealed class MonitorConfig
     public bool AccentGlow { get; set; }
 
     /// <summary>
+    /// How tall the direction arrow is drawn relative to a digit, as a percentage.
+    /// See <see cref="DefaultArrowSizePercent"/>.
+    /// </summary>
+    public int ArrowSizePercent { get; set; } = DefaultArrowSizePercent;
+
+    /// <summary>
     /// Render the speeds the way the clock is rendered: subpixel (ClearType) glyphs on
     /// a fully opaque plate. Off by default because the plate necessarily hides the
     /// taskbar behind the widget; on, it is the only way to get identical sharpness,
@@ -146,6 +161,7 @@ internal sealed class MonitorConfig
         RoundedBars = RoundedBars,
         SharedScale = SharedScale,
         AccentGlow = AccentGlow,
+        ArrowSizePercent = ArrowSizePercent,
         CrispText = CrispText,
         StartWithWindows = StartWithWindows,
     };
@@ -183,6 +199,7 @@ internal sealed class MonitorConfig
         RoundedBars = other.RoundedBars;
         SharedScale = other.SharedScale;
         AccentGlow = other.AccentGlow;
+        ArrowSizePercent = other.ArrowSizePercent;
         CrispText = other.CrispText;
         StartWithWindows = other.StartWithWindows;
         Normalize();
@@ -217,6 +234,7 @@ internal sealed class MonitorConfig
         BarThicknessPx = Numeric.Clamp(BarThicknessPx, 1, MaxBarThicknessPx);
         SegmentGapPx = Numeric.Clamp(SegmentGapPx, 0, MaxSegmentGapPx);
         BackdropOpacity = Numeric.Clamp(BackdropOpacity, 0, 255);
+        ArrowSizePercent = Numeric.Clamp(ArrowSizePercent, MinArrowSizePercent, MaxArrowSizePercent);
 
         if (double.IsNaN(FontSizePt) || double.IsInfinity(FontSizePt))
         {
