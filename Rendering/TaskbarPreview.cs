@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Drawing.Drawing2D;
+using System.Drawing.Text;
 using HASNetMonitor.Core;
 
 namespace HASNetMonitor.Rendering;
@@ -29,6 +30,10 @@ internal static class TaskbarPreview
         using (Graphics graphics = Graphics.FromImage(picture))
         {
             graphics.SmoothingMode = SmoothingMode.AntiAlias;
+
+            // Same hint as the widget, so the mock clock and the widget's own glyphs are
+            // rasterised alike and the font can honestly be judged here.
+            graphics.TextRenderingHint = WidgetRenderer.GlyphHint;
 
             var strip = new Rectangle(0, 0, picture.Width, picture.Height);
             using (var backdrop = new LinearGradientBrush(

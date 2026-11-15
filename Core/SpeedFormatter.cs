@@ -10,6 +10,18 @@ internal static class SpeedFormatter
 {
     private static readonly string[] Units = ["B/s", "KB/s", "MB/s", "GB/s", "TB/s"];
 
+    /// <summary>
+    /// Down arrow, drawn in the download colour beside the download figure. U+2193
+    /// rather than U+25BC: the arrowhead is small and legible at taskbar sizes, where
+    /// the solid triangle turns into a blob.
+    /// </summary>
+    public const string DownloadArrow = "\u2193";
+
+    /// <summary>Up arrow, drawn in the upload colour.</summary>
+    public const string UploadArrow = "\u2191";
+
+    public static string ArrowFor(bool isDownload) => isDownload ? DownloadArrow : UploadArrow;
+
     public static string Format(double bytesPerSecond)
     {
         if (double.IsNaN(bytesPerSecond) || double.IsInfinity(bytesPerSecond) || bytesPerSecond <= 0)
@@ -40,5 +52,5 @@ internal static class SpeedFormatter
     }
 
     public static string FormatRow(bool isDownload, double bytesPerSecond)
-        => $"{(isDownload ? "\u2193" : "\u2191")} {Format(bytesPerSecond)}";
+        => $"{ArrowFor(isDownload)} {Format(bytesPerSecond)}";
 }

@@ -67,13 +67,22 @@ internal sealed class WidgetRenderer
     public const float MinimumFontSizePt = 6f;
 
     /// <summary>
+    /// How glyphs are rasterised. Grid-fitted antialiasing, not plain AntiAlias: at
+    /// taskbar sizes the stems land on whole pixels and read as even strokes, which is
+    /// what the clock beside the widget looks like. Subpixel (ClearType) rendering is
+    /// not available here - it needs an opaque background, and this bitmap is
+    /// transparent by design - so grid-fit greyscale is the closest equivalent.
+    /// </summary>
+    public const TextRenderingHint GlyphHint = TextRenderingHint.AntiAliasGridFit;
+
+    /// <summary>
     /// Near-invisible wash covering the whole widget. Layered windows only receive
     /// mouse input where the alpha is non-zero, so this keeps right-click working
     /// over the empty space between the bars.
     /// </summary>
     public const byte HitWashAlpha = 1;
 
-    private static readonly string[] ProbeTexts = BuildProbeTexts();
+    private static readonly string[] ProbeNumbers = BuildProbeNumbers();
 
     public WidgetLayout ComputeLayout(MonitorConfig config, float scale, int maxHeight)
     {
@@ -103,7 +112,7 @@ internal sealed class WidgetRenderer
         {
             using Font font = CreateFont(points, scale, config);
             int textHeight = Math.Max(1, (int)Math.Ceiling(font.GetHeight(measureGraphics)));
-            int contentWidth = Math.Max(1, (int)Math.Ceiling(MeasureWidestProbe(measureGraphics, font)));
+            int contentWidth = Math.Max(1, (int)Math.Ceiling(MeasureWidestProbe(measureGraphics, font, scale)));
 
             int height;
             int width;
@@ -469,7 +478,11 @@ internal sealed class WidgetRenderer
     {
         graphics.Clear(Color.Transparent);
         graphics.SmoothingMode = SmoothingMode.None;
-        graphics.TextRenderingHint = TextRenderingHint.AntiAlias;
+
+        // Grid-fit antialiasing, not plain AntiAlias: at taskbar sizes the glyph stems
+        // land on whole pixels and read as even strokes, the way the clock does. Plain
+        // AntiAlias softens every stem in both directions and looks washed out beside it.
+        graphics.TextRenderingHint = GlyphHint;
 
         using (var hitWash = new SolidBrush(Color.FromArgb(HitWashAlpha, 255, 255, 255)))
         {
@@ -518,11 +531,15 @@ internal sealed class WidgetRenderer
         }
 
         using var textBrush = new SolidBrush(theme.TextColor);
+        using var downloadBrush = new SolidBrush(config.DownloadColor);
+        using var uploadBrush = new SolidBrush(config.UploadColor);
         using Font font = CreateFont(layout.FontSizePoints, layout.Scale, config);
         using StringFormat format = CreateTightFormat();
 
-        DrawRowText(graphics, font, textBrush, format, layout.DownloadText, SpeedFormatter.FormatRow(true, visual.DownloadBytesPerSecond));
-        DrawRowText(graphics, font, textBrush, format, layout.UploadText, SpeedFormatter.FormatRow(false, visual.UploadBytesPerSecond));
+        // The arrow of each row is drawn in that row's traffic colour, so the direction
+        // reads at a glance; only the figure itself uses the text colour.
+        DrawRowText(graphics, font, format, layout.DownloadText, downloadBrush, textBrush, isDownload: true, visual.DownloadBytesPerSecond, layout.Scale);
+        DrawRowText(graphics, font, format, layout.UploadText, uploadBrush, textBrush, isDownload: false, visual.UploadBytesPerSecond, layout.Scale);
     }
 
     /// <summary>The classic look: solid tracks with a solid fill from the left.</summary>
@@ -824,7 +841,16 @@ internal sealed class WidgetRenderer
         }
     }
 
-    private static void DrawRowText(Graphics graphics, Font font, Brush brush, StringFormat format, Rectangle bounds, string text)
+    private static void DrawRowText(
+        Graphics graphics,
+        Font font,
+        StringFormat format,
+        Rectangle bounds,
+        Brush arrowBrush,
+        Brush textBrush,
+        bool isDownload,
+        double bytesPerSecond,
+        float scale)
     {
         if (bounds.Width <= 0 || bounds.Height <= 0)
         {
@@ -833,7 +859,37 @@ internal sealed class WidgetRenderer
 
         float textHeight = font.GetHeight(graphics);
         float top = bounds.Y + (bounds.Height - textHeight) / 2f;
-        graphics.DrawString(text, font, brush, bounds.X, top, format);
+
+        graphics.DrawString(SpeedFormatter.ArrowFor(isDownload), font, arrowBrush, bounds.X, top, format);
+
+        // The figure starts after the arrow and its gap, at the exact distance the
+        // width measurement reserves for it.
+        float numberX = bounds.X + RowNumberOffset(graphics, font, format, scale);
+        graphics.DrawString(SpeedFormatter.Format(bytesPerSecond), font, textBrush, numberX, top, format);
+    }
+
+    /// <summary>
+    /// Distance from a row's left edge to the first glyph of the figure: the arrow,
+    /// widened for antialiasing, plus the gap after it.
+    /// </summary>
+    public static float RowNumberOffset(Graphics graphics, Font font, StringFormat format, float scale)
+    {
+        float arrow = Math.Max(
+            graphics.MeasureString(SpeedFormatter.DownloadArrow, font, PointF.Empty, format).Width,
+            graphics.MeasureString(SpeedFormatter.UploadArrow, font, PointF.Empty, format).Width);
+
+        return arrow + ArrowGap(scale);
+    }
+
+    /// <summary>The small gap between a row's arrow and its figure, in scaled pixels.</summary>
+    public static float ArrowGap(float scale)
+    {
+        if (scale <= 0 || float.IsNaN(scale) || float.IsInfinity(scale))
+        {
+            scale = 1f;
+        }
+
+        return Math.Max(1f, (float)Math.Round(2 * scale));
     }
 
     private static Rectangle Slice(Rectangle source, int width)
@@ -868,24 +924,26 @@ internal sealed class WidgetRenderer
         Trimming = StringTrimming.None,
     };
 
-    private static float MeasureWidestProbe(Graphics graphics, Font font)
+    private static float MeasureWidestProbe(Graphics graphics, Font font, float scale)
     {
         using StringFormat format = CreateTightFormat();
         float widest = 0;
-        foreach (string probe in ProbeTexts)
+        foreach (string probe in ProbeNumbers)
         {
             widest = Math.Max(widest, graphics.MeasureString(probe, font, PointF.Empty, format).Width);
         }
 
-        return widest;
+        // A row is the arrow and the figure drawn side by side, so its width is the
+        // arrow offset plus the widest figure we can produce.
+        return RowNumberOffset(graphics, font, format, scale) + widest;
     }
 
     /// <summary>
     /// Width probes come from the real formatter, so the widget width stays stable
-    /// (no jitter as numbers change) and always matches the widest string we can
-    /// actually produce.
+    /// (no jitter as numbers change) and always matches the widest figure we can
+    /// actually produce. The arrow is measured separately by RowNumberOffset.
     /// </summary>
-    private static string[] BuildProbeTexts()
+    private static string[] BuildProbeNumbers()
     {
         double[] samples =
         [
@@ -899,11 +957,10 @@ internal sealed class WidgetRenderer
             100.0 * 1024 * 1024 * 1024,
         ];
 
-        var probes = new List<string>(samples.Length * 2);
+        var probes = new List<string>(samples.Length);
         foreach (double sample in samples)
         {
-            probes.Add(SpeedFormatter.FormatRow(true, sample));
-            probes.Add(SpeedFormatter.FormatRow(false, sample));
+            probes.Add(SpeedFormatter.Format(sample));
         }
 
         return [.. probes];

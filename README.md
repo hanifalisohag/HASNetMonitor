@@ -251,6 +251,22 @@ Windows update removes it.
 
 To start over, exit the app and delete the config folder.
 
+## Look
+
+When text is on, each row is the direction arrow followed by the figure:
+
+- the arrival (download) arrow is drawn in the download colour, the departure (upload)
+  arrow in the upload colour, so a row is identified before the number is read;
+- the figure itself stays in the taskbar text colour, so a dark arrow colour can never
+  make the speed unreadable;
+- glyphs are rasterised with grid-fitted antialiasing, the same treatment the taskbar
+  clock gets, so the strokes stay even and crisp beside it. Subpixel (ClearType)
+  rendering is not possible here: it needs an opaque background, and the widget's
+  bitmap is transparent by design so the real taskbar shows through.
+
+The arrow is not part of the speed string: `SpeedFormatter.Format` returns the figure
+only, and the renderer draws the two runs side by side from the configured colours.
+
 ## Settings dialog
 
 Changes apply to the live widget immediately — the dialog also previews them on a mock
