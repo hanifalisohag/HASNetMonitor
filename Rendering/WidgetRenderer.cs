@@ -1115,15 +1115,18 @@ internal sealed class WidgetRenderer
     }
 
     /// <summary>
-    /// Ceiling on the font-measured arrow growth, so an odd font cannot produce a giant arrow.
+    /// Ceiling on the font-measured glyph correction, so an odd font cannot produce a
+    /// giant arrow by itself.
     /// </summary>
-    public const double MaximumArrowScale = 1.6;
+    public const double MaximumGlyphCorrection = 1.6;
 
     /// <summary>
     /// Ceiling on the arrow's em size relative to the figure's, whatever the setting, so
-    /// even 300% cannot push the row past the taskbar.
+    /// even 300% cannot push the row past the taskbar. This is the outer bound on the
+    /// arrow's growth: <see cref="MaximumGlyphCorrection"/> and the user's percentage both
+    /// count towards it.
     /// </summary>
-    public const double MaximumArrowTotalScale = 3.0;
+    public const double MaximumArrowScale = 3.0;
 
     /// <summary>
     /// The em size the arrow is drawn at. The U+2191/U+2193 glyphs are drawn noticeably
@@ -1187,14 +1190,14 @@ internal sealed class WidgetRenderer
     /// <summary>
     /// The arrow's em size: the figure's size, grown by the family's glyph correction and
     /// then by the user's percentage. Never smaller than the figure, never beyond
-    /// <see cref="MaximumArrowTotalScale"/>, and never beyond what the row can hold.
+    /// <see cref="MaximumArrowScale"/>, and never beyond what the row can hold.
     /// </summary>
     private static int ArrowEmFor(int textEmPixels, double ratio, int arrowSizePercent, int inkLimitEm = int.MaxValue)
     {
         int size = Math.Max(1, textEmPixels);
         double percent = Numeric.Clamp(arrowSizePercent, MonitorConfig.MinArrowSizePercent, MonitorConfig.MaxArrowSizePercent) / 100.0;
         int wanted = (int)Math.Ceiling(size * ratio * percent);
-        int ceiling = Math.Min((int)Math.Ceiling(size * MaximumArrowTotalScale), Math.Max(size, inkLimitEm));
+        int ceiling = Math.Min((int)Math.Ceiling(size * MaximumArrowScale), Math.Max(size, inkLimitEm));
         return Numeric.Clamp(wanted, size, ceiling);
     }
 
@@ -1224,7 +1227,7 @@ internal sealed class WidgetRenderer
 
             // Never shrink the arrow: a family whose arrow is already taller keeps it.
             double ratio = digit / arrow;
-            return ratio < 1.0 ? 1.0 : Math.Min(ratio, MaximumArrowScale);
+            return ratio < 1.0 ? 1.0 : Math.Min(ratio, MaximumGlyphCorrection);
         }
         catch (Exception ex) when (ex is ArgumentException or ExternalException)
         {

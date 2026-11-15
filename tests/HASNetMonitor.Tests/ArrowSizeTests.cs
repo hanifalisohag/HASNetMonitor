@@ -88,7 +88,7 @@ public class ArrowSizeTests
             // The cap is on the total growth: the family correction times the user's
             // percentage, whatever that percentage is.
             Assert.True(
-                arrowEm <= (int)Math.Ceiling(em * WidgetRenderer.MaximumArrowTotalScale),
+                arrowEm <= (int)Math.Ceiling(em * WidgetRenderer.MaximumArrowScale),
                 $"em {em} gave {arrowEm}");
         }
     }
