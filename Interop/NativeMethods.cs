@@ -462,4 +462,64 @@ internal static class NativeMethods
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode)]
     internal static extern IntPtr GetModuleHandle(string? moduleName);
+
+    // --- DPI awareness, set in code so no App.config has to ship beside the exe. ---
+
+    /// <summary>
+    /// SetProcessDpiAwarenessContext is Windows 10 1703+. It is probed rather than
+    /// hard-imported, because a missing export on an older Windows must fall through to
+    /// the system-aware call instead of crashing at start-up.
+    /// </summary>
+    [DllImport("user32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetProcessDpiAwarenessContext(IntPtr context);
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetProcessDPIAware();
+
+    /// <summary>shcore!GetProcessDpiAwareness; absent before Windows 8.1.</summary>
+    [DllImport("shcore.dll")]
+    private static extern int GetProcessDpiAwareness(IntPtr process, out int awareness);
+
+    public static bool TrySetPerMonitorV2Awareness()
+    {
+        try
+        {
+            return SetProcessDpiAwarenessContext(new IntPtr(-4));
+        }
+        catch (Exception ex) when (ex is EntryPointNotFoundException or DllNotFoundException)
+        {
+            return false;
+        }
+    }
+
+    public static bool TrySetSystemAwareness()
+    {
+        try
+        {
+            return SetProcessDPIAware();
+        }
+        catch (Exception ex) when (ex is EntryPointNotFoundException or DllNotFoundException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// Current awareness: 0 unaware, 1 system-aware, 2 per-monitor. Returns false when
+    /// the API is missing, so "unknown" is never mistaken for "nothing set".
+    /// </summary>
+    public static bool TryGetProcessDpiAwareness(out int awareness)
+    {
+        try
+        {
+            return GetProcessDpiAwareness(IntPtr.Zero, out awareness) == 0;
+        }
+        catch (Exception ex) when (ex is EntryPointNotFoundException or DllNotFoundException)
+        {
+            awareness = 0;
+            return false;
+        }
+    }
 }

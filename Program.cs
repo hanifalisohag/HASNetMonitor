@@ -13,9 +13,12 @@ internal static class Program
     private static int Main(string[] args)
     {
 #if NETFRAMEWORK
+        // DPI awareness first: it has no effect once a window exists. This replaces the
+        // App.config that used to carry it, so the app ships as one file.
+        DpiAwareness.Apply();
+
         // .NET Framework has no ApplicationConfiguration: the same two calls it
-        // makes are the classic WinForms start-up pair. DPI awareness comes from
-        // App.config for this target.
+        // makes are the classic WinForms start-up pair.
         Application.EnableVisualStyles();
         Application.SetCompatibleTextRenderingDefault(false);
 #else

@@ -1,7 +1,9 @@
+using System.Collections.Concurrent;
 using System.Drawing;
 using System.Drawing.Drawing2D;
 using System.Drawing.Imaging;
 using System.Drawing.Text;
+using System.Runtime.InteropServices;
 using HASNetMonitor.Core;
 
 namespace HASNetMonitor.Rendering;
@@ -124,6 +126,15 @@ internal sealed class WidgetRenderer
     public const byte HitWashAlpha = 1;
 
     private static readonly string[] ProbeNumbers = BuildProbeNumbers();
+
+    /// <summary>Em size at which a family's arrow-to-digit ink ratio is measured once.</summary>
+    public const int ArrowProbeEmPixels = 64;
+
+    /// <summary>
+    /// Digit-to-arrow ink height ratios, one per family and style. Fonts are process-wide,
+    /// so this is measured once rather than on every tick.
+    /// </summary>
+    private static readonly ConcurrentDictionary<string, double> ArrowRatios = new();
 
     public WidgetLayout ComputeLayout(MonitorConfig config, float scale, int maxHeight)
     {
@@ -924,7 +935,15 @@ internal sealed class WidgetRenderer
         float textHeight = font.GetHeight(graphics);
         float top = bounds.Y + (bounds.Height - textHeight) / 2f;
 
-        graphics.DrawString(SpeedFormatter.ArrowFor(isDownload), font, arrowBrush, bounds.X, top, format);
+        // The arrow has its own font, one size up so its ink matches the digits, and it
+        // is centred on its own em box: aligning the two em boxes keeps the arrowhead on
+        // the same optical line as the figure instead of hanging below it.
+        using (Font arrowFont = CreateArrowFont(font))
+        {
+            float arrowHeight = arrowFont.GetHeight(graphics);
+            float arrowTop = bounds.Y + (bounds.Height - arrowHeight) / 2f;
+            graphics.DrawString(SpeedFormatter.ArrowFor(isDownload), arrowFont, arrowBrush, bounds.X, arrowTop, format);
+        }
 
         // The figure starts after the arrow and its gap, at the exact distance the
         // width measurement reserves for it.
@@ -938,9 +957,13 @@ internal sealed class WidgetRenderer
     /// </summary>
     public static float RowNumberOffset(Graphics graphics, Font font, StringFormat format, float scale)
     {
-        float arrow = Math.Max(
-            graphics.MeasureString(SpeedFormatter.DownloadArrow, font, PointF.Empty, format).Width,
-            graphics.MeasureString(SpeedFormatter.UploadArrow, font, PointF.Empty, format).Width);
+        float arrow;
+        using (Font arrowFont = CreateArrowFont(font))
+        {
+            arrow = Math.Max(
+                graphics.MeasureString(SpeedFormatter.DownloadArrow, arrowFont, PointF.Empty, format).Width,
+                graphics.MeasureString(SpeedFormatter.UploadArrow, arrowFont, PointF.Empty, format).Width);
+        }
 
         return arrow + ArrowGap(scale);
     }
@@ -974,9 +997,14 @@ internal sealed class WidgetRenderer
     internal static Font CreateFont(int emPixels, MonitorConfig? config = null)
     {
         int size = Math.Max(1, emPixels);
-        string family = FontCatalog.Resolve(config?.FontFamily);
-        FontStyle style = FontCatalog.StyleFor(config?.FontBold ?? false, config?.FontItalic ?? false);
+        return CreateFont(
+            FontCatalog.Resolve(config?.FontFamily),
+            FontCatalog.StyleFor(config?.FontBold ?? false, config?.FontItalic ?? false),
+            size);
+    }
 
+    private static Font CreateFont(string family, FontStyle style, int size)
+    {
         try
         {
             return new Font(family, size, style, GraphicsUnit.Pixel);
@@ -988,6 +1016,82 @@ internal sealed class WidgetRenderer
             // on the render thread.
             return new Font(family, size, FontStyle.Regular, GraphicsUnit.Pixel);
         }
+    }
+
+    /// <summary>Ceiling on the arrow's growth, so an odd font cannot produce a giant arrow.</summary>
+    public const double MaximumArrowScale = 1.6;
+
+    /// <summary>
+    /// The em size the arrow is drawn at. The U+2191/U+2193 glyphs are drawn noticeably
+    /// shorter and narrower than the digits in every UI font - at 12 px the arrow's ink is
+    /// 8.1 px tall against 8.7 for a digit - so an arrow at the figure's own size reads as
+    /// a small tick beside the number instead of a marker of its size. This scales the
+    /// arrow until its ink is at least as tall as a digit's, measured once per family so
+    /// it is right for whichever font the user picked.
+    /// </summary>
+    public static int ArrowEmPixels(int textEmPixels, MonitorConfig? config = null)
+    {
+        int size = Math.Max(1, textEmPixels);
+        double ratio = ArrowHeightRatio(
+            FontCatalog.Resolve(config?.FontFamily),
+            FontCatalog.StyleFor(config?.FontBold ?? false, config?.FontItalic ?? false));
+
+        return ArrowEmFor(size, ratio);
+    }
+
+    /// <summary>
+    /// Creates the font the arrow is drawn with, derived from the figure's own font so
+    /// the two always share a family and style.
+    /// </summary>
+    internal static Font CreateArrowFont(Font textFont)
+    {
+        int em = Math.Max(1, (int)Math.Round(textFont.Size));
+        int arrowEm = ArrowEmFor(em, ArrowHeightRatio(textFont.FontFamily.Name, textFont.Style));
+        return CreateFont(textFont.FontFamily.Name, textFont.Style, arrowEm);
+    }
+
+    private static int ArrowEmFor(int textEmPixels, double ratio)
+        => Math.Max(textEmPixels, (int)Math.Ceiling(textEmPixels * ratio));
+
+    /// <summary>
+    /// Ratio of a digit's ink height to the arrow glyph's, so the arrow can be scaled to
+    /// match. Measured once per family and style: ink boxes scale linearly with the em
+    /// size, so one measurement serves every size.
+    /// </summary>
+    private static double ArrowHeightRatio(string family, FontStyle style)
+        => ArrowRatios.GetOrAdd($"{family}|{(int)style}", _ => MeasureArrowHeightRatio(family, style));
+
+    private static double MeasureArrowHeightRatio(string family, FontStyle style)
+    {
+        try
+        {
+            using var surface = new Bitmap(1, 1, PixelFormat.Format32bppPArgb);
+            using var graphics = Graphics.FromImage(surface);
+            using Font font = CreateFont(family, style, ArrowProbeEmPixels);
+            using StringFormat format = CreateTightFormat();
+
+            float digit = InkHeight(graphics, font, format, "8");
+            float arrow = InkHeight(graphics, font, format, SpeedFormatter.DownloadArrow);
+            if (digit <= 0 || arrow <= 0 || float.IsNaN(digit) || float.IsNaN(arrow))
+            {
+                return 1.0;
+            }
+
+            // Never shrink the arrow: a family whose arrow is already taller keeps it.
+            double ratio = digit / arrow;
+            return ratio < 1.0 ? 1.0 : Math.Min(ratio, MaximumArrowScale);
+        }
+        catch (Exception ex) when (ex is ArgumentException or ExternalException)
+        {
+            return 1.0;
+        }
+    }
+
+    private static float InkHeight(Graphics graphics, Font font, StringFormat format, string text)
+    {
+        using var path = new GraphicsPath();
+        path.AddString(text, font.FontFamily, (int)font.Style, font.Size, PointF.Empty, format);
+        return path.GetBounds().Height;
     }
 
     private static StringFormat CreateTightFormat() => new(StringFormat.GenericTypographic)

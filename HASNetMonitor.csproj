@@ -34,10 +34,17 @@
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(TargetFramework)' == 'net48'">
-    <!-- .NET Framework has no ApplicationHighDpiMode; App.config carries the same
-         setting (see App.config) so the settings dialog stays crisp when scaled. -->
+    <!-- .NET Framework has no ApplicationHighDpiMode; Core/DpiAwareness.cs sets the
+         same PerMonitorV2 mode through user32 at start-up, so no App.config has to
+         ship beside the exe. -->
     <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
     <GenerateBindingRedirectsOutputType>true</GenerateBindingRedirectsOutputType>
+    <!-- The SDK generates an exe.config carrying only <supportedRuntime> for this
+         target. It says nothing the CLR header does not already say, and it is the last
+         reason a HASNetMonitor.exe.config would appear beside the exe, so it is off:
+         the app publishes as one file. -->
+    <GenerateSupportedRuntime>false</GenerateSupportedRuntime>
+    <SkipCopyAppConfigToOutput>true</SkipCopyAppConfigToOutput>
   </PropertyGroup>
 
   <ItemGroup>

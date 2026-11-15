@@ -141,12 +141,13 @@ Output:
 
 | File | Size | Needed? |
 |---|---|---|
-| `HASNetMonitor.exe` | 239 KB | yes |
-| `HASNetMonitor.exe.config` | 0.6 KB | yes, carries `DpiAwareness=PerMonitorV2` |
-| `HASNetMonitor.pdb` | 36 KB | no, debug symbols |
+| `HASNetMonitor.exe` | 249 KB | yes, the whole app |
+| `HASNetMonitor.pdb` | 39 KB | no, debug symbols |
 
-Copy the two files together. Without the `.config` the app still runs, but the settings
-window is bitmap-stretched on a display scaled above 100%.
+The exe is the only file to copy. There is no `HASNetMonitor.exe.config`: .NET Framework
+would normally take its DPI mode from one, so `Core/DpiAwareness.cs` claims
+`PerMonitorV2` through `user32` before the first window exists, which is the same setting
+without a second file to ship.
 
 **Why .NET Framework.** No modern .NET is part of Windows: the .NET 11 Desktop Runtime is
 a separate installer, and a self-contained build carries ~50 MB of runtime. .NET Framework is
@@ -164,8 +165,11 @@ What the `net48` build does differently, so it stays small and dependency-free:
 - **Compatibility helpers** in `Core/Compat.cs`, `Core/Numeric.cs` and `Core/Elapsed.cs`
   stand in for `Math.Clamp`, `double.IsFinite`, `Stopwatch.GetElapsedTime`,
   `Environment.ProcessPath` and `NativeLibrary`, which the Framework lacks.
-- **DPI awareness** comes from `App.config` (the Framework equivalent of the project's
-  `ApplicationHighDpiMode`), not from the modern runtime host.
+- **DPI awareness** is set in code by `Core/DpiAwareness.cs` calling
+  `SetProcessDpiAwarenessContext` with `PER_MONITOR_AWARE_V2`, falling back to
+  `SetProcessDPIAware` on older Windows. It runs first in `Main`, before any window, and
+  replaces the `App.config` the Framework would otherwise need — so no
+  `HASNetMonitor.exe.config` ships beside the exe.
 
 Both targets compile from the same sources with `#if NETFRAMEWORK` only inside those
 compatibility files, and the whole test suite runs on both.
@@ -261,6 +265,11 @@ When text is on, each row is the direction arrow followed by the figure:
   arrow in the upload colour, so a row is identified before the number is read;
 - the figure itself stays in the taskbar text colour, so a dark arrow colour can never
   make the speed unreadable;
+- the arrow is drawn one size up from the figure. U+2191/U+2193 are drawn shorter than the
+  digits in every UI font — 8.1 px against 8.7 at a 12 px em — so an arrow at the figure's
+  own size read as a small tick beside the number. The renderer measures the digit and
+  arrow ink once per font family and scales the arrow until its ink is at least as tall as
+  a digit's, capped at 1.6× so an odd font cannot produce a huge arrow;
 - glyphs are built from a whole-pixel em size, so their stems land on pixel columns and
   stay even at every taskbar height and display scale;
 - glyphs are rasterised with grid-fitted antialiasing, the same treatment the taskbar
@@ -269,7 +278,8 @@ When text is on, each row is the direction arrow followed by the figure:
   bitmap is transparent by design so the real taskbar shows through.
 
 The arrow is not part of the speed string: `SpeedFormatter.Format` returns the figure
-only, and the renderer draws the two runs side by side from the configured colours.
+only, and the renderer draws the two runs side by side from the configured colours, each
+with its own font — the arrow's one size up, centred on the same line as the figure.
 
 ### How the two bars are scaled
 
@@ -365,7 +375,7 @@ Upgrading from a build under the previous name:
 ```
 Program.cs                 entry point, --self-test / --smoke, single-instance guard
 SelfTest.cs                environment and rendering checks behind --self-test
-App.config                 DPI awareness for the net48 build
+Core/DpiAwareness.cs       PerMonitorV2 in code, so no exe.config has to ship
 Core/                      config, styles, fonts, geometry, traffic sampling
   ConfigJson.cs            config JSON, one backend per target
   Compat.cs                net48 stand-ins for .NET 11 only APIs
