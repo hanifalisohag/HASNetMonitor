@@ -31,9 +31,15 @@ internal static class WidgetStyles
     /// <summary>Hairline fills with no track behind them.</summary>
     public const string Minimal = "Minimal";
 
+    /// <summary>Solid fills that fade out towards the right, brightest at zero.</summary>
+    public const string Gradient = "Gradient";
+
+    /// <summary>A hollow track outline with a thinner fill inside it.</summary>
+    public const string Outline = "Outline";
+
     /// <summary>Every style name, in the order the settings dialog lists them.</summary>
     public static IReadOnlyList<string> All { get; } =
-        [Bars, Level, Sidebar, SidebarSegments, Neon, Segments, Dots, Minimal];
+        [Bars, Level, Sidebar, SidebarSegments, Neon, Segments, Dots, Minimal, Gradient, Outline];
 
     /// <summary>True for the styles whose two tracks stand upright side by side.</summary>
     public static bool IsVertical(string? style)
@@ -76,6 +82,8 @@ internal static class WidgetStyles
         Segments => "Segments (chunky blocks)",
         Dots => "Dots (dot matrix)",
         Minimal => "Minimal (hairline fills)",
+        Gradient => "Gradient (fading fills)",
+        Outline => "Outline (hollow track)",
         _ => "Bars (classic rows)",
     };
 }

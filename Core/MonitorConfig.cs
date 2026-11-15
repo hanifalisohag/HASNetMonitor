@@ -29,8 +29,18 @@ internal sealed class MonitorConfig
     /// the eye should catch first. It never shrinks below the figure.
     /// </summary>
     public const int DefaultArrowSizePercent = 150;
-    public const int MinArrowSizePercent = 100;
+    public const int MinArrowSizePercent = 50;
     public const int MaxArrowSizePercent = 300;
+
+    /// <summary>The spinner's step, in percentage points: a tenth of the figure's size.</summary>
+    public const int ArrowSizeStep = 10;
+
+    /// <summary>The arrow shape a fresh config starts with.</summary>
+    public const string DefaultArrowStyle = ArrowStyles.Classic;
+
+    /// <summary>The figure colour a fresh config starts with, used once the mode is Custom.</summary>
+    public const string DefaultTextColor = "#FFFFFF";
+
     public const int MaxNudgePx = 400;
     public const double MinFontSizePt = 6;
     public const double MaxFontSizePt = 20;
@@ -40,6 +50,21 @@ internal sealed class MonitorConfig
     public string DownloadColorHex { get; set; } = DefaultDownloadColor;
 
     public string UploadColorHex { get; set; } = DefaultUploadColor;
+
+    /// <summary>Where the download figure takes its colour from; see <see cref="TextColorModes"/>.</summary>
+    public string DownloadTextColorMode { get; set; } = TextColorModes.Auto;
+
+    /// <summary>Where the upload figure takes its colour from; see <see cref="TextColorModes"/>.</summary>
+    public string UploadTextColorMode { get; set; } = TextColorModes.Auto;
+
+    /// <summary>Used for the download figure when its mode is <see cref="TextColorModes.Custom"/>.</summary>
+    public string DownloadTextColorHex { get; set; } = DefaultTextColor;
+
+    /// <summary>Used for the upload figure when its mode is <see cref="TextColorModes.Custom"/>.</summary>
+    public string UploadTextColorHex { get; set; } = DefaultTextColor;
+
+    /// <summary>One of <see cref="ArrowStyles"/>; unknown values fall back to the classic arrows.</summary>
+    public string ArrowStyle { get; set; } = ArrowStyles.Classic;
 
     public int RefreshIntervalMs { get; set; } = DefaultRefreshIntervalMs;
 
@@ -131,6 +156,18 @@ internal sealed class MonitorConfig
     [JsonIgnore]
     public Color UploadColor => ColorHelper.Parse(UploadColorHex, DefaultUpload);
 
+    /// <summary>
+    /// The colour the download figure is drawn in: the taskbar's text colour, the row's
+    /// bar colour, or the colour the user picked, according to its mode.
+    /// </summary>
+    public Color DownloadTextColor(Color taskbarText) => ResolveTextColor(DownloadTextColorMode, DownloadTextColorHex, DownloadColor, taskbarText);
+
+    /// <summary>The colour the upload figure is drawn in; see <see cref="DownloadTextColor"/>.</summary>
+    public Color UploadTextColor(Color taskbarText) => ResolveTextColor(UploadTextColorMode, UploadTextColorHex, UploadColor, taskbarText);
+
+    private static Color ResolveTextColor(string mode, string hex, Color barColor, Color taskbarText)
+        => TextColorModes.Resolve(mode, hex, barColor, taskbarText);
+
     [JsonIgnore]
     public int EffectiveRefreshIntervalMs => Numeric.Clamp(RefreshIntervalMs, MinRefreshIntervalMs, MaxRefreshIntervalMs);
 
@@ -141,6 +178,11 @@ internal sealed class MonitorConfig
     {
         DownloadColorHex = DownloadColorHex,
         UploadColorHex = UploadColorHex,
+        DownloadTextColorMode = DownloadTextColorMode,
+        UploadTextColorMode = UploadTextColorMode,
+        DownloadTextColorHex = DownloadTextColorHex,
+        UploadTextColorHex = UploadTextColorHex,
+        ArrowStyle = ArrowStyle,
         RefreshIntervalMs = RefreshIntervalMs,
         OffsetFromTrayPx = OffsetFromTrayPx,
         AutoScale = AutoScale,
@@ -179,6 +221,11 @@ internal sealed class MonitorConfig
 
         DownloadColorHex = other.DownloadColorHex;
         UploadColorHex = other.UploadColorHex;
+        DownloadTextColorMode = other.DownloadTextColorMode;
+        UploadTextColorMode = other.UploadTextColorMode;
+        DownloadTextColorHex = other.DownloadTextColorHex;
+        UploadTextColorHex = other.UploadTextColorHex;
+        ArrowStyle = other.ArrowStyle;
         RefreshIntervalMs = other.RefreshIntervalMs;
         OffsetFromTrayPx = other.OffsetFromTrayPx;
         AutoScale = other.AutoScale;
@@ -214,6 +261,11 @@ internal sealed class MonitorConfig
     {
         DownloadColorHex = ColorHelper.ToHex(ColorHelper.Parse(DownloadColorHex, DefaultDownload));
         UploadColorHex = ColorHelper.ToHex(ColorHelper.Parse(UploadColorHex, DefaultUpload));
+        DownloadTextColorMode = TextColorModes.Normalize(DownloadTextColorMode);
+        UploadTextColorMode = TextColorModes.Normalize(UploadTextColorMode);
+        DownloadTextColorHex = ColorHelper.ToHex(ColorHelper.Parse(DownloadTextColorHex, ColorHelper.Parse(DefaultTextColor, Color.White)));
+        UploadTextColorHex = ColorHelper.ToHex(ColorHelper.Parse(UploadTextColorHex, ColorHelper.Parse(DefaultTextColor, Color.White)));
+        ArrowStyle = ArrowStyles.Normalize(ArrowStyle);
 
         RefreshIntervalMs = Numeric.Clamp(RefreshIntervalMs, MinRefreshIntervalMs, MaxRefreshIntervalMs);
 

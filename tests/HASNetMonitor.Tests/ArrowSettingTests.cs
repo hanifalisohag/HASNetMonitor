@@ -238,33 +238,45 @@ public class ArrowSettingTests
     }
 
     [Fact]
-    public void TheSettingsListOffersTheDefaultAndKeepsACustomValue()
+    public void TheArrowSizeIsSteppableInTenthsAcrossItsWholeRange()
     {
-        IReadOnlyList<int> presets = SettingsForm.ArrowSizeChoiceKeys(MonitorConfig.DefaultArrowSizePercent);
-        Assert.Contains(MonitorConfig.DefaultArrowSizePercent, presets);
-        Assert.Contains(MonitorConfig.MinArrowSizePercent, presets);
-        Assert.Contains(MonitorConfig.MaxArrowSizePercent, presets);
-        Assert.Equal(presets.OrderBy(p => p), presets);
+        // The spinner's own arithmetic: 0.5, 0.6, 1 and 2 are all one step apart, and every
+        // step inside the bounds is reachable, so the size can be dialled in by hand.
+        Assert.Equal(10, MonitorConfig.ArrowSizeStep);
+        Assert.Equal(50, MonitorConfig.MinArrowSizePercent);
+        Assert.Equal(300, MonitorConfig.MaxArrowSizePercent);
 
-        // A percentage set by hand is kept as its own entry instead of being reset.
-        IReadOnlyList<int> custom = SettingsForm.ArrowSizeChoiceKeys(142);
-        Assert.Contains(142, custom);
-        Assert.Equal(custom.OrderBy(p => p), custom);
+        var steps = new List<int>();
+        for (int percent = MonitorConfig.MinArrowSizePercent;
+             percent <= MonitorConfig.MaxArrowSizePercent;
+             percent += MonitorConfig.ArrowSizeStep)
+        {
+            steps.Add(percent);
+        }
 
-        // Out of range selections are clamped into the list.
-        Assert.Contains(MonitorConfig.MaxArrowSizePercent, SettingsForm.ArrowSizeChoiceKeys(int.MaxValue));
-        Assert.Contains(MonitorConfig.MinArrowSizePercent, SettingsForm.ArrowSizeChoiceKeys(int.MinValue));
+        Assert.Contains(50, steps);
+        Assert.Contains(60, steps);
+        Assert.Contains(100, steps);
+        Assert.Contains(200, steps);
+        Assert.Contains(MonitorConfig.MaxArrowSizePercent, steps);
+        Assert.All(steps, step => Assert.InRange(step, MonitorConfig.MinArrowSizePercent, MonitorConfig.MaxArrowSizePercent));
+
+        // A tenth of the figure is a real change in the drawn ink, not a rounding no-op.
+        Assert.True(DrawnArrowHeight(100) < DrawnArrowHeight(110), "0.1 more must draw a taller arrow");
+        Assert.True(DrawnArrowHeight(50) < DrawnArrowHeight(100), "half the figure must draw a shorter arrow");
     }
 
     [Fact]
     public void TheSettingsDialogCarriesTheArrowChoice()
     {
-        // The dialog is a picker, so the plumbing is checked at the source: the box is
-        // built from the presets and the edited value leaves through ArrowSizePercent.
+        // The dialog is a spinner, so the plumbing is checked at the source: it is built
+        // from the config value, sits under Look, and the edited value leaves through
+        // ArrowSizePercent.
         string source = SourceText.Read("UI", "SettingsForm.cs");
 
         Assert.Contains("ArrowSizePercent = SelectedArrowSize()", source, StringComparison.Ordinal);
         Assert.Contains("CreateArrowSizeBox(config.ArrowSizePercent)", source, StringComparison.Ordinal);
-        Assert.Contains("AddRow(look, \"Arrow size:\", _arrowSize)", source, StringComparison.Ordinal);
+        Assert.Contains("AddRow(look, \"Arrow size (x):\", _arrowSize)", source, StringComparison.Ordinal);
+        Assert.Contains("Increment = MonitorConfig.ArrowSizeStep / 100m", source, StringComparison.Ordinal);
     }
 }

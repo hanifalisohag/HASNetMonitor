@@ -69,6 +69,9 @@ internal readonly record struct WidgetLayout(
     /// this value, not the config, or the arrow would be clipped by the room it left.
     /// </summary>
     public int ArrowSizePercent { get; init; } = MonitorConfig.DefaultArrowSizePercent;
+
+    /// <summary>The arrow style the layout was measured with, so drawing matches it.</summary>
+    public string ArrowStyle { get; init; } = ArrowStyles.Classic;
 }
 
 /// <summary>
@@ -147,6 +150,9 @@ internal sealed class WidgetRenderer
     /// <summary>Arrow ink height per em pixel, measured per family and style.</summary>
     private static readonly ConcurrentDictionary<string, double> ArrowInkRatios = new();
 
+    /// <summary>Whether a family carries a code point, keyed by family and glyph.</summary>
+    private static readonly ConcurrentDictionary<string, bool> ArrowAvailability = new();
+
     public WidgetLayout ComputeLayout(MonitorConfig config, float scale, int maxHeight)
     {
         if (scale <= 0 || float.IsNaN(scale) || float.IsInfinity(scale))
@@ -185,7 +191,7 @@ internal sealed class WidgetRenderer
         {
             using Font font = CreateFont(emPixels, config);
             int textHeight = Math.Max(1, (int)Math.Ceiling(font.GetHeight(measureGraphics)));
-            int contentWidth = Math.Max(1, (int)Math.Ceiling(MeasureWidestProbe(measureGraphics, font, scale, arrowPercent, textHeight)));
+            int contentWidth = Math.Max(1, (int)Math.Ceiling(MeasureWidestProbe(measureGraphics, font, scale, arrowPercent, textHeight, ArrowStyles.Normalize(config.ArrowStyle))));
 
             int height;
             int width;
@@ -241,6 +247,7 @@ internal sealed class WidgetRenderer
                 SegmentGap = segmentGap,
                 FontEmPixels = emPixels,
                 ArrowSizePercent = arrowPercent,
+                ArrowStyle = ArrowStyles.Normalize(config.ArrowStyle),
             };
         }
     }
@@ -612,6 +619,12 @@ internal sealed class WidgetRenderer
             case WidgetStyles.Minimal:
                 DrawMinimalMeters(graphics, visual, config, layout, theme);
                 break;
+            case WidgetStyles.Gradient:
+                DrawGradientMeters(graphics, visual, config, layout, theme);
+                break;
+            case WidgetStyles.Outline:
+                DrawOutlineMeters(graphics, visual, config, layout, theme);
+                break;
             default:
                 DrawSolidMeters(graphics, visual, config, layout, theme);
                 break;
@@ -622,16 +635,124 @@ internal sealed class WidgetRenderer
             return;
         }
 
-        using var textBrush = new SolidBrush(theme.TextColor);
-        using var downloadBrush = new SolidBrush(config.DownloadColor);
-        using var uploadBrush = new SolidBrush(config.UploadColor);
         using Font font = CreateFont(layout.FontEmPixels, config);
         using StringFormat format = CreateTightFormat();
 
-        // The arrow of each row is drawn in that row's traffic colour, so the direction
-        // reads at a glance; only the figure itself uses the text colour.
-        DrawRowText(graphics, font, format, layout.DownloadText, config.DownloadColor, textBrush, isDownload: true, visual.DownloadBytesPerSecond, layout.Scale, layout.ArrowSizePercent);
-        DrawRowText(graphics, font, format, layout.UploadText, config.UploadColor, textBrush, isDownload: false, visual.UploadBytesPerSecond, layout.Scale, layout.ArrowSizePercent);
+        // Each row has its own figure colour: the taskbar's text colour, its bar's colour,
+        // or a colour the user picked. The arrow always follows the row's bar colour, so a
+        // white figure keeps a green arrow and the direction still reads at a glance.
+        Color taskbarText = theme.TextColor;
+        using var downloadTextBrush = new SolidBrush(config.DownloadTextColor(taskbarText));
+        using var uploadTextBrush = new SolidBrush(config.UploadTextColor(taskbarText));
+
+        DrawRowText(graphics, font, format, layout.DownloadText, config.DownloadColor, downloadTextBrush, isDownload: true, visual.DownloadBytesPerSecond, layout.Scale, layout.ArrowSizePercent, layout.ArrowStyle);
+        DrawRowText(graphics, font, format, layout.UploadText, config.UploadColor, uploadTextBrush, isDownload: false, visual.UploadBytesPerSecond, layout.Scale, layout.ArrowSizePercent, layout.ArrowStyle);
+    }
+
+    /// <summary>
+    /// Solid fills that fade towards the right: brightest where the traffic starts, so the
+    /// leading edge reads as the head of the bar.
+    /// </summary>
+    private static void DrawGradientMeters(Graphics graphics, WidgetVisual visual, MonitorConfig config, WidgetLayout layout, WidgetTheme theme)
+    {
+        using var trackBrush = new SolidBrush(theme.TrackColor);
+        graphics.FillRectangle(trackBrush, layout.DownloadBar);
+        graphics.FillRectangle(trackBrush, layout.UploadBar);
+
+        DrawGradientFill(graphics, layout, visual, config, layout.DownloadBar, visual.DownloadRatio, config.DownloadColor, layout.Scale);
+        DrawGradientFill(graphics, layout, visual, config, layout.UploadBar, visual.UploadRatio, config.UploadColor, layout.Scale);
+    }
+
+    private static void DrawGradientFill(
+        Graphics graphics,
+        WidgetLayout layout,
+        WidgetVisual visual,
+        MonitorConfig config,
+        Rectangle track,
+        double ratio,
+        Color color,
+        float scale)
+    {
+        int width = FillWidth(track.Width, ratio);
+        if (width <= 0)
+        {
+            return;
+        }
+
+        Rectangle fill = Slice(track, width);
+        using var brush = new LinearGradientBrush(
+            new Rectangle(fill.X, fill.Y, Math.Max(2, fill.Width), Math.Max(1, fill.Height)),
+            color,
+            Color.FromArgb(GradientTailAlpha, color),
+            LinearGradientMode.Horizontal);
+        FillShape(graphics, brush, fill, config.RoundedBars, scale);
+    }
+
+    /// <summary>A hollow track outline with a thinner bar filling it from the left.</summary>
+    private static void DrawOutlineMeters(Graphics graphics, WidgetVisual visual, MonitorConfig config, WidgetLayout layout, WidgetTheme theme)
+    {
+        using var trackBrush = new SolidBrush(theme.TrackColor);
+        using var downloadBrush = new SolidBrush(config.DownloadColor);
+        using var uploadBrush = new SolidBrush(config.UploadColor);
+
+        DrawOutlineTrack(graphics, layout.DownloadBar, visual.DownloadRatio, downloadBrush, theme.TrackColor, config, layout.Scale);
+        DrawOutlineTrack(graphics, layout.UploadBar, visual.UploadRatio, uploadBrush, theme.TrackColor, config, layout.Scale);
+    }
+
+    private static void DrawOutlineTrack(
+        Graphics graphics,
+        Rectangle track,
+        double ratio,
+        Brush fillBrush,
+        Color trackColor,
+        MonitorConfig config,
+        float scale)
+    {
+        if (track.Width <= 0 || track.Height <= 0)
+        {
+            return;
+        }
+
+        int inset = Math.Max(1, (int)Math.Round(scale));
+        Rectangle inner = Rectangle.Inflate(track, -inset, -inset);
+        if (inner.Width <= 0 || inner.Height <= 0)
+        {
+            inner = track;
+        }
+
+        // The border is the only part that shows the track, so the outline reads as an
+        // empty gauge rather than a filled one.
+        int thickness = Math.Max(1, (int)Math.Round(scale));
+        using var border = new Pen(trackColor, thickness);
+        if (config.RoundedBars)
+        {
+            SmoothingMode previous = graphics.SmoothingMode;
+            graphics.SmoothingMode = SmoothingMode.AntiAlias;
+            try
+            {
+                using GraphicsPath path = CreateRoundedPath(track, Math.Max(1, Math.Min(track.Height / 2, (int)Math.Round(2 * scale))));
+                graphics.DrawPath(border, path);
+            }
+            finally
+            {
+                graphics.SmoothingMode = previous;
+            }
+        }
+        else
+        {
+            graphics.DrawRectangle(border, track.X, track.Y, Math.Max(0, track.Width - 1), Math.Max(0, track.Height - 1));
+        }
+
+        int width = FillWidth(inner.Width, ratio);
+        if (width > 0)
+        {
+            if (config.AccentGlow)
+            {
+                DrawGlow(graphics, Slice(inner, width), ((SolidBrush)fillBrush).Color, scale);
+            }
+
+            FillShape(graphics, fillBrush, Slice(inner, width), config.RoundedBars, scale);
+        }
     }
 
     /// <summary>The classic look: solid tracks with a solid fill from the left.</summary>
@@ -940,6 +1061,9 @@ internal sealed class WidgetRenderer
     /// </summary>
     private const int ArrowInkAlpha = 254;
 
+    /// <summary>Opacity of a gradient fill's far end, as a byte.</summary>
+    private const int GradientTailAlpha = 90;
+
     private static void DrawRowText(
         Graphics graphics,
         Font font,
@@ -950,7 +1074,8 @@ internal sealed class WidgetRenderer
         bool isDownload,
         double bytesPerSecond,
         float scale,
-        int arrowSizePercent)
+        int arrowSizePercent,
+        string? arrowStyle = null)
     {
         if (bounds.Width <= 0 || bounds.Height <= 0)
         {
@@ -959,23 +1084,31 @@ internal sealed class WidgetRenderer
 
         float textHeight = font.GetHeight(graphics);
         float top = bounds.Y + (bounds.Height - textHeight) / 2f;
+        string style = ArrowStyles.Normalize(arrowStyle);
 
         // The arrow has its own font, scaled by the user's setting and by the family's
         // glyph correction, and it is centred on its ink box rather than its em box: the
         // em box is much taller than the glyph, so em-centring would hang the arrowhead
         // below the figure's line and cost vertical room the row does not have. The row is
         // the figure's own row, so the ink cap keeps the arrow inside it.
-        using (Font arrowFont = CreateArrowFont(font, arrowSizePercent, bounds.Height))
         using (var arrowBrush = new SolidBrush(Color.FromArgb(ArrowInkAlpha, arrowColor)))
         {
-            string glyph = SpeedFormatter.ArrowFor(isDownload);
-            float arrowTop = InkCentredTop(graphics, arrowFont, format, glyph, bounds);
-            graphics.DrawString(glyph, arrowFont, arrowBrush, bounds.X, arrowTop, format);
+            if (ArrowStyles.IsDrawn(style))
+            {
+                DrawBarArrow(graphics, arrowBrush, bounds, font, arrowSizePercent, isDownload, scale);
+            }
+            else if (!ArrowStyles.IsHidden(style))
+            {
+                using Font arrowFont = CreateArrowFont(font, arrowSizePercent, bounds.Height, style);
+                string glyph = ResolveArrowGlyph(font.FontFamily.Name, style, isDownload);
+                float arrowTop = InkCentredTop(graphics, arrowFont, format, glyph, bounds);
+                graphics.DrawString(glyph, arrowFont, arrowBrush, bounds.X, arrowTop, format);
+            }
         }
 
         // The figure starts after the arrow and its gap, at the exact distance the
         // width measurement reserves for it.
-        float numberX = bounds.X + RowNumberOffset(graphics, font, format, scale, arrowSizePercent, bounds.Height);
+        float numberX = bounds.X + RowNumberOffset(graphics, font, format, scale, arrowSizePercent, bounds.Height, style);
         graphics.DrawString(SpeedFormatter.Format(bytesPerSecond), font, textBrush, numberX, top, format);
     }
 
@@ -989,18 +1122,159 @@ internal sealed class WidgetRenderer
         StringFormat format,
         float scale,
         int arrowSizePercent = MonitorConfig.DefaultArrowSizePercent,
-        float rowHeight = 0)
+        float rowHeight = 0,
+        string? arrowStyle = null)
     {
+        string style = ArrowStyles.Normalize(arrowStyle);
+        if (ArrowStyles.IsHidden(style))
+        {
+            return 0f;
+        }
+
+        if (ArrowStyles.IsDrawn(style))
+        {
+            return BarArrowWidth(font, arrowSizePercent, rowHeight) + ArrowGap(scale);
+        }
+
         float arrow;
-        using (Font arrowFont = CreateArrowFont(font, arrowSizePercent, rowHeight))
+        using (Font arrowFont = CreateArrowFont(font, arrowSizePercent, rowHeight, style))
         {
             arrow = Math.Max(
-                graphics.MeasureString(SpeedFormatter.DownloadArrow, arrowFont, PointF.Empty, format).Width,
-                graphics.MeasureString(SpeedFormatter.UploadArrow, arrowFont, PointF.Empty, format).Width);
+                graphics.MeasureString(ResolveArrowGlyph(font.FontFamily.Name, style, isDownload: true), arrowFont, PointF.Empty, format).Width,
+                graphics.MeasureString(ResolveArrowGlyph(font.FontFamily.Name, style, isDownload: false), arrowFont, PointF.Empty, format).Width);
         }
 
         return arrow + ArrowGap(scale);
     }
+
+    /// <summary>
+    /// The glyph a style asks for, or the classic arrow when the chosen family does not
+    /// carry that code point: a triangle or a chevron is missing from plenty of UI fonts,
+    /// and a missing glyph draws as an empty box, which is worse than the default arrow.
+    /// </summary>
+    internal static string ResolveArrowGlyph(string family, string? style, bool isDownload)
+    {
+        string? wanted = ArrowStyles.GlyphFor(style, isDownload);
+        if (wanted is null)
+        {
+            return string.Empty;
+        }
+
+        return GlyphAvailable(family, wanted)
+            ? wanted
+            : ArrowStyles.GlyphFor(ArrowStyles.Classic, isDownload)!;
+    }
+
+    private static bool GlyphAvailable(string family, string glyph)
+        => ArrowAvailability.GetOrAdd(
+            $"{family}|{glyph}",
+            _ => MeasureGlyphAvailable(family, glyph));
+
+    private static bool MeasureGlyphAvailable(string family, string glyph)
+    {
+        try
+        {
+            using var surface = new Bitmap(1, 1, PixelFormat.Format32bppPArgb);
+            using var graphics = Graphics.FromImage(surface);
+            using Font font = CreateFont(family, FontStyle.Regular, ArrowProbeEmPixels);
+            return InkHeight(graphics, font, CreateTightFormat(), glyph) > 0.5f;
+        }
+        catch (Exception ex) when (ex is ArgumentException or ExternalException)
+        {
+            return false;
+        }
+    }
+
+    /// <summary>Width a drawn bar arrow needs, matching <see cref="DrawBarArrow"/>.</summary>
+    internal static float BarArrowWidth(Font textFont, int arrowSizePercent, float rowHeight)
+    {
+        int em = ArrowEmFor(
+            Math.Max(1, (int)Math.Round(textFont.Size)),
+            ArrowHeightRatio(textFont.FontFamily.Name, textFont.Style),
+            arrowSizePercent,
+            InkLimitEm(textFont.FontFamily.Name, textFont.Style, rowHeight));
+        return Math.Max(BarMinimumWidth, (float)Math.Round(em * BarWidthPerEm));
+    }
+
+    /// <summary>
+    /// A direction arrow built from a stem and a triangular head. Unlike a glyph it is
+    /// exactly as tall as the arrow size asks for in every font, which is why it is
+    /// offered: some fonts draw their arrows as thin hairline strokes.
+    /// </summary>
+    private static void DrawBarArrow(
+        Graphics graphics,
+        Brush brush,
+        Rectangle bounds,
+        Font textFont,
+        int arrowSizePercent,
+        bool isDownload,
+        float scale)
+    {
+        float width = Math.Max(BarMinimumWidth, (float)Math.Round(BoundsForArrow(textFont, arrowSizePercent, bounds).em * BarWidthPerEm));
+        float height = Math.Min(bounds.Height, BoundsForArrow(textFont, arrowSizePercent, bounds).ink);
+
+        // Centre the arrow on the figure's own line, then keep it inside the row.
+        float centre = bounds.Y + (bounds.Height / 2f);
+        float top = Math.Max(bounds.Y, centre - (height / 2f));
+        float left = bounds.X;
+
+        float stemWidth = Math.Max(1f, (float)Math.Round(width * BarStemFraction));
+        float headHeight = Math.Max(2f, (float)Math.Round(height * BarHeadFraction));
+        float stemHeight = Math.Max(1f, height - headHeight);
+        float stemLeft = left + ((width - stemWidth) / 2f);
+
+        SmoothingMode previous = graphics.SmoothingMode;
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        try
+        {
+            if (isDownload)
+            {
+                // Head at the bottom, stem rising from it.
+                graphics.FillRectangle(brush, stemLeft, top, stemWidth, stemHeight);
+                graphics.FillPolygon(brush, BarHead(left, top + stemHeight, width, headHeight));
+            }
+            else
+            {
+                // Head at the top, stem falling from it.
+                graphics.FillPolygon(brush, BarHead(left, top, width, headHeight));
+                graphics.FillRectangle(brush, stemLeft, top + headHeight, stemWidth, stemHeight);
+            }
+        }
+        finally
+        {
+            graphics.SmoothingMode = previous;
+        }
+    }
+
+    private static PointF[] BarHead(float left, float top, float width, float height) =>
+    [
+        new PointF(left + (width / 2f), top),
+        new PointF(left, top + height),
+        new PointF(left + width, top + height),
+    ];
+
+    private static (int em, float ink) BoundsForArrow(Font textFont, int arrowSizePercent, Rectangle bounds)
+    {
+        int em = ArrowEmFor(
+            Math.Max(1, (int)Math.Round(textFont.Size)),
+            ArrowHeightRatio(textFont.FontFamily.Name, textFont.Style),
+            arrowSizePercent,
+            InkLimitEm(textFont.FontFamily.Name, textFont.Style, bounds.Height));
+        double ink = em * ArrowInkRatio(textFont.FontFamily.Name, textFont.Style);
+        return (em, (float)Math.Min(bounds.Height, Math.Max(1, ink)));
+    }
+
+    /// <summary>Narrowest drawn arrow, so it is never a sub-pixel sliver.</summary>
+    private const float BarMinimumWidth = 2f;
+
+    /// <summary>Width of a drawn arrow relative to its em size.</summary>
+    private const float BarWidthPerEm = 0.55f;
+
+    /// <summary>Stem thickness as a fraction of the arrow's width.</summary>
+    private const float BarStemFraction = 0.36f;
+
+    /// <summary>Head height as a fraction of the arrow's height.</summary>
+    private const float BarHeadFraction = 0.52f;
 
     /// <summary>
     /// Height of a text row: the taller of the figure and the arrow, so a large arrow is
@@ -1172,11 +1446,19 @@ internal sealed class WidgetRenderer
     internal static Font CreateArrowFont(Font textFont)
         => CreateArrowFont(textFont, MonitorConfig.DefaultArrowSizePercent, 0);
 
-    internal static Font CreateArrowFont(Font textFont, int arrowSizePercent, float rowHeight = 0)
+    internal static Font CreateArrowFont(Font textFont, int arrowSizePercent, float rowHeight = 0, string? arrowStyle = null)
     {
         int em = Math.Max(1, (int)Math.Round(textFont.Size));
         string family = textFont.FontFamily.Name;
         FontStyle style = textFont.Style;
+
+        // The drawn bar arrow and the hidden marker never use a glyph, so neither needs a
+        // second font: the figure's own font stands in and is never painted with.
+        if (ArrowStyles.IsDrawn(arrowStyle) || ArrowStyles.IsHidden(arrowStyle))
+        {
+            return CreateFont(family, style, em);
+        }
+
         return CreateFont(
             family,
             style,
@@ -1189,16 +1471,17 @@ internal sealed class WidgetRenderer
 
     /// <summary>
     /// The arrow's em size: the figure's size, grown by the family's glyph correction and
-    /// then by the user's percentage. Never smaller than the figure, never beyond
-    /// <see cref="MaximumArrowScale"/>, and never beyond what the row can hold.
+    /// then by the user's percentage, so 100% is the figure's own size and 50% is half of
+    /// it. Never beyond <see cref="MaximumArrowScale"/>, and never beyond what the row
+    /// can hold.
     /// </summary>
     private static int ArrowEmFor(int textEmPixels, double ratio, int arrowSizePercent, int inkLimitEm = int.MaxValue)
     {
         int size = Math.Max(1, textEmPixels);
         double percent = Numeric.Clamp(arrowSizePercent, MonitorConfig.MinArrowSizePercent, MonitorConfig.MaxArrowSizePercent) / 100.0;
         int wanted = (int)Math.Ceiling(size * ratio * percent);
-        int ceiling = Math.Min((int)Math.Ceiling(size * MaximumArrowScale), Math.Max(size, inkLimitEm));
-        return Numeric.Clamp(wanted, size, ceiling);
+        int ceiling = Math.Min((int)Math.Ceiling(size * MaximumArrowScale), Math.Max(1, inkLimitEm));
+        return Numeric.Clamp(wanted, 1, ceiling);
     }
 
     /// <summary>
@@ -1299,7 +1582,8 @@ internal sealed class WidgetRenderer
         Font font,
         float scale,
         int arrowSizePercent,
-        float rowHeight)
+        float rowHeight,
+        string arrowStyle)
     {
         using StringFormat format = CreateTightFormat();
         float widest = 0;
@@ -1309,8 +1593,9 @@ internal sealed class WidgetRenderer
         }
 
         // A row is the arrow and the figure drawn side by side, so its width is the
-        // arrow offset plus the widest figure we can produce.
-        return RowNumberOffset(graphics, font, format, scale, arrowSizePercent, rowHeight) + widest;
+        // arrow offset plus the widest figure we can produce. The offset depends on the
+        // chosen arrow, so a wide marker is reserved and the figure still fits.
+        return RowNumberOffset(graphics, font, format, scale, arrowSizePercent, rowHeight, arrowStyle) + widest;
     }
 
     /// <summary>

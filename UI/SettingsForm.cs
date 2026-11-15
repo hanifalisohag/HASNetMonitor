@@ -49,7 +49,12 @@ internal sealed class SettingsForm : Form
     private readonly ComboBox _style;
     private readonly ComboBox _sortOrder;
     private readonly ComboBox _fontFamily;
-    private readonly ComboBox _arrowSize;
+    private readonly NumericUpDown _arrowSize;
+    private readonly ComboBox _arrowStyle;
+    private readonly ComboBox _downloadTextMode;
+    private readonly ComboBox _uploadTextMode;
+    private readonly Button _downloadTextColorButton;
+    private readonly Button _uploadTextColorButton;
     private readonly PictureBox _preview;
     private readonly Label _previewError;
 
@@ -197,6 +202,11 @@ internal sealed class SettingsForm : Form
 
         _fontFamily = CreateFontBox(config.FontFamily);
         _arrowSize = CreateArrowSizeBox(config.ArrowSizePercent);
+        _arrowStyle = CreateArrowStyleBox(config.ArrowStyle);
+        _downloadTextMode = CreateTextColorBox(config.DownloadTextColorMode);
+        _uploadTextMode = CreateTextColorBox(config.UploadTextColorMode);
+        _downloadTextColorButton = CreateColorButton("Download text colour");
+        _uploadTextColorButton = CreateColorButton("Upload text colour");
 
         _bold = new CheckBox { Text = "Bold", Checked = config.FontBold, AutoSize = true };
         _italic = new CheckBox { Text = "Italic", Checked = config.FontItalic, AutoSize = true };
@@ -213,7 +223,8 @@ internal sealed class SettingsForm : Form
         AddRow(look, "Style:", _style);
         AddRow(look, "Stacking:", _sortOrder);
         AddRow(look, "Font:", _fontFamily);
-        AddRow(look, "Arrow size:", _arrowSize);
+        AddRow(look, "Arrow size (x):", _arrowSize);
+        AddRow(look, "Arrow type:", _arrowStyle);
         AddRow(look, string.Empty, Combine(_bold, _italic));
         AddRow(look, "Bar shape:", Combine(_roundedBars, _accentGlow));
         AddRow(look, "Bar thickness (px):", _barThickness);
@@ -225,6 +236,8 @@ internal sealed class SettingsForm : Form
         var colours = CreateGroup("Colours and behaviour");
         AddRow(colours, "Download colour:", _downloadColorButton);
         AddRow(colours, "Upload colour:", _uploadColorButton);
+        AddRow(colours, "Download text:", Combine(_downloadTextMode, _downloadTextColorButton));
+        AddRow(colours, "Upload text:", Combine(_uploadTextMode, _uploadTextColorButton));
         AddRow(colours, "Refresh (ms):", _interval);
         AddRow(colours, "Scaling:", _autoScale);
         AddRow(colours, "Bar scale:", _sharedScale);
@@ -291,6 +304,10 @@ internal sealed class SettingsForm : Form
 
         SetColor(_downloadColorButton, config.DownloadColorHex);
         SetColor(_uploadColorButton, config.UploadColorHex);
+        SetColor(_downloadTextColorButton, config.DownloadTextColorHex);
+        SetColor(_uploadTextColorButton, config.UploadTextColorHex);
+        _downloadTextColorButton.Click += (_, _) => PickColor(_downloadTextColorButton);
+        _uploadTextColorButton.Click += (_, _) => PickColor(_uploadTextColorButton);
 
         ok.Click += (_, _) => ApplyDialogResult();
 
@@ -361,6 +378,11 @@ internal sealed class SettingsForm : Form
             SortOrder = SelectedKey(_sortOrder, StackOrder.DownloadFirst),
             FontFamily = SelectedKey(_fontFamily, FontCatalog.Automatic),
             ArrowSizePercent = SelectedArrowSize(),
+            ArrowStyle = SelectedKey(_arrowStyle, MonitorConfig.DefaultArrowStyle),
+            DownloadTextColorMode = SelectedKey(_downloadTextMode, TextColorModes.Auto),
+            UploadTextColorMode = SelectedKey(_uploadTextMode, TextColorModes.Auto),
+            DownloadTextColorHex = _downloadTextColorButton.Tag as string ?? MonitorConfig.DefaultTextColor,
+            UploadTextColorHex = _uploadTextColorButton.Tag as string ?? MonitorConfig.DefaultTextColor,
             FontBold = _bold.Checked,
             FontItalic = _italic.Checked,
             RoundedBars = _roundedBars.Checked,
@@ -537,64 +559,67 @@ internal sealed class SettingsForm : Form
     }
 
     /// <summary>
-    /// The arrow-size presets, as percentages. A stored percentage that is not one of them
-    /// keeps its own entry, so a hand-edited config is honoured instead of being silently
-    /// reset.
+    /// The arrow-size spinner. It steps in tenths of the figure's size, so 0.5, 0.6, 1,
+    /// 2 and anything in between are all reachable by typing or by the arrows, and it
+    /// never offers a value outside <see cref="MonitorConfig.ArrowSizePercent"/>'s bounds.
     /// </summary>
-    internal static IReadOnlyList<int> ArrowSizeChoiceKeys(int selected)
-    {
-        int percent = Numeric.Clamp(selected, MonitorConfig.MinArrowSizePercent, MonitorConfig.MaxArrowSizePercent);
-        var presets = new List<int> { 100, MonitorConfig.DefaultArrowSizePercent, 200, MonitorConfig.MaxArrowSizePercent };
-
-        if (!presets.Contains(percent))
-        {
-            presets.Add(percent);
-        }
-
-        presets.Sort();
-        return presets;
-    }
-
-    private static string DescribeArrowSize(int percent) => percent switch
-    {
-        100 => "Same as the figure",
-        MonitorConfig.DefaultArrowSizePercent => "Larger (default)",
-        200 => "Twice the figure",
-        MonitorConfig.MaxArrowSizePercent => "Huge",
-        _ => $"Custom ({percent.ToString(CultureInfo.InvariantCulture)}%)",
-    };
-
-    /// <summary>
-    /// The arrow-size picker. It never offers a value outside
-    /// <see cref="MonitorConfig.ArrowSizePercent"/>'s own bounds, and a percentage the
-    /// config already holds is shown as its own entry rather than being reset to the
-    /// nearest preset, so a hand-edited file keeps the size it asked for.
-    /// </summary>
-    private static ComboBox CreateArrowSizeBox(int selectedPercent)
+    private static NumericUpDown CreateArrowSizeBox(int selectedPercent)
     {
         int percent = Numeric.Clamp(selectedPercent, MonitorConfig.MinArrowSizePercent, MonitorConfig.MaxArrowSizePercent);
+        return new NumericUpDown
+        {
+            Minimum = MonitorConfig.MinArrowSizePercent / 100m,
+            Maximum = MonitorConfig.MaxArrowSizePercent / 100m,
+            DecimalPlaces = 1,
+            Increment = MonitorConfig.ArrowSizeStep / 100m,
+            Value = percent / 100m,
+            Width = 70,
+            AccessibleDescription = "How tall the direction arrow is drawn, as a multiple of "
+                + "the figure's size: 1 is the same size, 0.5 is half, 2 is twice.",
+        };
+    }
 
+    private int SelectedArrowSize()
+        => Numeric.Clamp(
+            (int)Math.Round(_arrowSize.Value * 100m),
+            MonitorConfig.MinArrowSizePercent,
+            MonitorConfig.MaxArrowSizePercent);
+
+    private static ComboBox CreateArrowStyleBox(string selected)
+    {
         var combo = new ComboBox
         {
             DropDownStyle = ComboBoxStyle.DropDownList,
             Width = 230,
-            AccessibleDescription = "How tall the direction arrow is drawn beside the figure.",
+            AccessibleDescription = "The shape of the arrow drawn beside each figure.",
         };
 
-        foreach (int choice in ArrowSizeChoiceKeys(percent))
+        foreach (string style in ArrowStyles.All)
         {
-            combo.Items.Add(new Choice(choice.ToString(CultureInfo.InvariantCulture), DescribeArrowSize(choice)));
+            combo.Items.Add(new Choice(style, ArrowStyles.Describe(style)));
         }
 
-        combo.SelectedIndex = IndexOfChoice(combo, percent.ToString(CultureInfo.InvariantCulture));
+        combo.SelectedIndex = IndexOfChoice(combo, ArrowStyles.Normalize(selected));
         return combo;
     }
 
-    private int SelectedArrowSize()
-        => _arrowSize.SelectedItem is Choice choice
-            && int.TryParse(choice.Key, NumberStyles.Integer, CultureInfo.InvariantCulture, out int percent)
-            ? Numeric.Clamp(percent, MonitorConfig.MinArrowSizePercent, MonitorConfig.MaxArrowSizePercent)
-            : MonitorConfig.DefaultArrowSizePercent;
+    private static ComboBox CreateTextColorBox(string selected)
+    {
+        var combo = new ComboBox
+        {
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Width = 150,
+            AccessibleDescription = "What colour the speed figure is drawn in.",
+        };
+
+        foreach (string mode in TextColorModes.All)
+        {
+            combo.Items.Add(new Choice(mode, TextColorModes.Describe(mode)));
+        }
+
+        combo.SelectedIndex = IndexOfChoice(combo, TextColorModes.Normalize(selected));
+        return combo;
+    }
 
     private static int IndexOfChoice(ComboBox combo, string key)
     {

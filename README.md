@@ -229,7 +229,12 @@ repaired on load — out-of-range values are clamped, unknown style names fall b
 | `ShowBackdrop` | `false` | `true`/`false` |
 | `BackdropOpacity` | `120` | 0–255 |
 | `CrispText` | `false` | `true`/`false` |
-| `ArrowSizePercent` | `150` | 100–300, arrow ink height against a digit's |
+| `ArrowSizePercent` | `150` | 50–300, arrow ink height against a digit's |
+| `ArrowStyle` | `Classic` | `Classic`, `Solid`, `Small`, `Double`, `Chevron`, `Bar`, `None` |
+| `DownloadTextColorMode` | `Auto` | `Auto`, `Bar`, `Custom` |
+| `DownloadTextColorHex` | `#FFFFFF` | `#RRGGBB`, used when the mode is `Custom` |
+| `UploadTextColorMode` | `Auto` | as above, for the upload row |
+| `UploadTextColorHex` | `#FFFFFF` | as above |
 | `BarThicknessPx` | `3` | 1–24 |
 | `SegmentGapPx` | `2` | 0–12 |
 | `FontSizePt` | `9` | 6–20 |
@@ -244,7 +249,9 @@ repaired on load — out-of-range values are clamped, unknown style names fall b
 
 Styles: `Bars` (classic rows), `Level` (segmented level meter), `Sidebar` (vertical
 bars), `SidebarSegments` (vertical bars split by gaps), `Neon` (glow, rounded caps),
-`Segments` (chunky blocks), `Dots` (dot matrix), `Minimal` (hairline fills, no track).
+`Segments` (chunky blocks), `Dots` (dot matrix), `Minimal` (hairline fills, no track),
+`Gradient` (fills that fade out towards the empty end) and `Outline` (a hollow track
+outline with a thinner fill inside it).
 
 A nudge is applied after the normal seat next to the tray and is clamped to the
 taskbar's own bounds — it can reach the bar edge but never leave the bar. On a 48 px
@@ -264,13 +271,19 @@ When text is on, each row is the direction arrow followed by the figure:
 
 - the arrival (download) arrow is drawn in the download colour, the departure (upload)
   arrow in the upload colour, so a row is identified before the number is read;
-- the figure itself stays in the taskbar text colour, so a dark arrow colour can never
-  make the speed unreadable;
-- **Arrow size** is a setting: **Look → Arrow size**, offering *Same as the figure* (100%),
-  *Larger (default, 150%)*, *Twice the figure* (200%) and *Huge* (300%), and keeping any
-  other percentage set by hand as its own entry instead of resetting it. The percentage is
-  of a digit's ink height, so 150% means the arrow's ink is half again as tall as a digit's.
-  U+2191/U+2193 are drawn shorter than the digits in every UI font — 8.1 px against 8.7 at
+- the figure itself is drawn in the **Look → Download text** / **Upload text** colour:
+  *Automatic (taskbar)*, *Same as the bar*, or *Custom colour* picked with the swatch
+  beside the list. So the figures can be white on a dark taskbar, green and red to match
+  the bars, or any pair of colours you like, and the arrow keeps the bar colour either way;
+- **Arrow size (×)** is a spinner: 0.5 to 3.0 in steps of 0.1, so 0.5, 0.6, 1.0 and 2.0
+  are all one click apart, and the value is a multiple of a digit's *ink height* — 1.0 is
+  the figure's own size, 1.5 (the default) makes the arrow's ink half again as tall. The
+  spinner is `ArrowSizePercent` in the config file, so 1.5 there is `150`;
+- **Arrow type** picks the marker: *Classic* ↑↓, *Solid* ▲▼, *Small* ▴▾, *Double* ⇑⇓,
+  *Chevron* ⌃⌄, *Bar* (a stem and head drawn as a shape, not a glyph) or *None*. A family
+  that lacks the chosen code point falls back to the classic arrows, because a missing
+  glyph draws as an empty box;
+- U+2191/U+2193 are drawn shorter than the digits in every UI font — 8.1 px against 8.7 at
   a 12 px em — which is why an arrow at the figure's own size read as a small tick; the
   renderer measures a family's digit-to-arrow ratio once and folds it into the setting;
 - the arrow is **capped by its row**: it may grow until its ink fills the row the figure

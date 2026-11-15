@@ -80,6 +80,16 @@ internal static class Pixels
 {
     public static bool SameRgb(Color a, Color b) => a.R == b.R && a.G == b.G && a.B == b.B;
 
+    /// <summary>
+    /// True when the pixel's colour matches within a few steps. The widget paints into a
+    /// premultiplied bitmap, so an opaque colour drawn at 254/255 comes back one or two
+    /// steps darker than the brush that painted it.
+    /// </summary>
+    public static bool CloseRgb(Color a, Color b, int tolerance = 4)
+        => Math.Abs(a.R - b.R) <= tolerance
+            && Math.Abs(a.G - b.G) <= tolerance
+            && Math.Abs(a.B - b.B) <= tolerance;
+
     /// <summary>True when the pixel is exactly this solid colour (no alpha blending).</summary>
     public static bool IsOpaque(Color actual, Color expected)
         => actual.A == 255 && SameRgb(actual, expected);
