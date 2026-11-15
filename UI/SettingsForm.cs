@@ -1,6 +1,4 @@
 using System.Drawing;
-using System.Drawing.Drawing2D;
-using System.Globalization;
 using HASNetMonitor.Core;
 using HASNetMonitor.Rendering;
 
@@ -8,16 +6,13 @@ namespace HASNetMonitor.UI;
 
 /// <summary>
 /// Settings dialog: look (style, stacking order, font, caps, glow), colours,
-/// cadence and scale, with a live preview of the widget on a mock taskbar. Values
-/// are validated by <see cref="MonitorConfig.Normalize"/> on the way out, so nothing
-/// picked here can produce a config the widget cannot draw.
+/// cadence and scale. Every control applies to the running widget as it is touched,
+/// so the dialog needs no preview of its own. Values are validated by
+/// <see cref="MonitorConfig.Normalize"/> on the way out, so nothing picked here can
+/// produce a config the widget cannot draw.
 /// </summary>
 internal sealed class SettingsForm : Form
 {
-    private const float PreviewScale = 2f;
-
-    private const int PreviewHeight = 128;
-
     private readonly Icon? _appIcon;
 
     private readonly Button _downloadColorButton;
@@ -55,8 +50,6 @@ internal sealed class SettingsForm : Form
     private readonly ComboBox _uploadTextMode;
     private readonly Button _downloadTextColorButton;
     private readonly Button _uploadTextColorButton;
-    private readonly PictureBox _preview;
-    private readonly Label _previewError;
 
     public SettingsForm(MonitorConfig config)
     {
@@ -259,27 +252,6 @@ internal sealed class SettingsForm : Form
         columns.Controls.Add(colours, 1, 0);
         columns.Controls.Add(position, 0, 1);
 
-        _preview = new PictureBox
-        {
-            Size = new Size(430, PreviewHeight),
-            BorderStyle = BorderStyle.FixedSingle,
-            BackColor = Color.FromArgb(24, 24, 26),
-            SizeMode = PictureBoxSizeMode.Normal,
-            AccessibleName = "Widget preview",
-        };
-
-        _previewError = new Label
-        {
-            AutoSize = true,
-            ForeColor = Color.Firebrick,
-            Visible = false,
-            MaximumSize = new Size(430, 0),
-        };
-
-        var previewGroup = CreateGroup("Preview");
-        AddRow(previewGroup, string.Empty, _preview);
-        AddRow(previewGroup, string.Empty, _previewError);
-
         var buttons = new FlowLayoutPanel
         {
             FlowDirection = FlowDirection.RightToLeft,
@@ -295,7 +267,6 @@ internal sealed class SettingsForm : Form
 
         var root = new TableLayoutPanel { ColumnCount = 1, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Dock = DockStyle.Fill };
         root.Controls.Add(columns);
-        root.Controls.Add(previewGroup);
         root.Controls.Add(buttons);
         Controls.Add(root);
 
@@ -311,23 +282,23 @@ internal sealed class SettingsForm : Form
 
         ok.Click += (_, _) => ApplyDialogResult();
 
+        // Crisping means an opaque plate, so the tint controls follow it rather than
+        // silently disagreeing with what the renderer does. Registered before the live
+        // wiring so the coupled values are already in place when the change is published.
+        _crispText.CheckedChanged += (_, _) => ApplyCrispCoupling();
+        ApplyCrispCoupling();
+
         foreach (Control input in new Control[]
         {
             _style, _sortOrder, _fontFamily, _arrowSize, _arrowStyle, _bold, _italic, _roundedBars,
             _accentGlow, _showText, _showBackdrop, _crispText, _sharedScale, _barThickness, _segmentGap,
             _fontSize, _nudgeX, _nudgeY, _offsetFromTray, _nudgeLeft, _nudgeRight, _nudgeUp, _nudgeDown,
-            _resetNudge, _downloadTextMode, _uploadTextMode,
+            _resetNudge, _downloadTextMode, _uploadTextMode, _autoScale, _maxScale, _interval,
+            _backdropOpacity, _startWithWindows,
         })
         {
-            WireForPreview(input);
+            WireForLive(input);
         }
-
-        // Crisping means an opaque plate, so the tint controls follow it rather than
-        // silently disagreeing with what the renderer does.
-        _crispText.CheckedChanged += (_, _) => ApplyCrispCoupling();
-        ApplyCrispCoupling();
-
-        RefreshPreview();
     }
 
     /// <summary>
@@ -392,49 +363,30 @@ internal sealed class SettingsForm : Form
         }.Normalize();
     }
 
-    private void WireForPreview(Control input)
+    private void WireForLive(Control input)
     {
         switch (input)
         {
             case ComboBox combo:
-                combo.SelectedIndexChanged += (_, _) => RefreshPreview();
+                combo.SelectedIndexChanged += (_, _) => PublishLive();
                 break;
             case CheckBox check:
-                check.CheckedChanged += (_, _) => RefreshPreview();
+                check.CheckedChanged += (_, _) => PublishLive();
                 break;
             case NumericUpDown number:
-                number.ValueChanged += (_, _) => RefreshPreview();
+                number.ValueChanged += (_, _) => PublishLive();
                 break;
         }
     }
 
     /// <summary>
-    /// Draws the current settings on a mock dark taskbar, at twice the normal scale,
-    /// so the style and font are actually legible while choosing them.
+    /// Hands the settings as they are right now to the running widget, so every change
+    /// is visible on the real taskbar the moment it is made. Nothing is saved until the
+    /// user accepts the dialog.
     /// </summary>
-    private void RefreshPreview()
+    private void PublishLive()
     {
-        MonitorConfig config;
-        try
-        {
-            config = BuildResult();
-            Bitmap canvas = TaskbarPreview.Render(config, _preview.Size, PreviewScale, PreviewHeight);
-
-            Image? previous = _preview.Image;
-            _preview.Image = canvas;
-            previous?.Dispose();
-            _previewError.Visible = false;
-        }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or OutOfMemoryException)
-        {
-            _previewError.Text = "The preview could not be drawn: " + ex.Message;
-            _previewError.Visible = true;
-            return;
-        }
-
-        // Every change is also handed to the live widget, so the user sees it on the
-        // real taskbar immediately instead of after pressing OK.
-        LiveChanged?.Invoke(this, config);
+        LiveChanged?.Invoke(this, BuildResult());
     }
 
     /// <summary>
@@ -726,7 +678,7 @@ internal sealed class SettingsForm : Form
         if (dialog.ShowDialog() == DialogResult.OK)
         {
             SetColor(button, ColorHelper.ToHex(dialog.Color));
-            RefreshPreview();
+            PublishLive();
         }
     }
 

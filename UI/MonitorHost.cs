@@ -217,12 +217,16 @@ internal sealed class MonitorHost : ApplicationContext
             // it was, even though every change was already applied live.
             MonitorConfig original = _config.Clone();
 
-            form.LiveChanged += (_, live) => ApplyLive(form, live, original);
+            form.LiveChanged += (_, live) => ApplyLive(live, original);
 
             if (form.ShowDialog() != DialogResult.OK || form.Result is not { } updated)
             {
                 _config.CopyFrom(original);
                 _widget.ApplyConfig();
+
+                // The autostart entry was written live like every other setting, so
+                // cancelling has to put the registry back as well.
+                SetStartupEntry(original.StartWithWindows);
                 return;
             }
 
@@ -238,30 +242,49 @@ internal sealed class MonitorHost : ApplicationContext
     }
 
     /// <summary>
-    /// Shows a change on the real widget immediately. Start-with-Windows is the one
-    /// setting that is not applied here: writing the registry belongs to accepting the
-    /// dialog, so the original value is kept until then.
+    /// Shows a change on the real widget immediately, including the autostart entry:
+    /// every control in the dialog applies as it is touched, so the dialog needs no
+    /// preview of its own. Nothing is written to config.json until the dialog is
+    /// accepted, and Cancel restores the registry entry along with the widget.
     /// </summary>
-    private void ApplyLive(SettingsForm form, MonitorConfig live, MonitorConfig original)
+    private void ApplyLive(MonitorConfig live, MonitorConfig original)
     {
         MonitorConfig applied = live.Clone();
-        applied.StartWithWindows = original.StartWithWindows;
 
         _config.CopyFrom(applied);
         _widget.ApplyConfig();
+
+        if (applied.StartWithWindows != original.StartWithWindows)
+        {
+            SetStartupEntry(applied.StartWithWindows);
+        }
     }
 
     private void ApplyStartup(bool enabled)
     {
+        if (SetStartupEntry(enabled))
+        {
+            _config.StartWithWindows = enabled;
+            _config.TrySave(_configPath);
+        }
+    }
+
+    /// <summary>
+    /// Writes or removes the per-user <c>Run</c> entry and reports whether it worked.
+    /// Kept apart from <see cref="ApplyStartup"/> so the dialog can apply the setting
+    /// live without saving <c>config.json</c> before the user accepts.
+    /// </summary>
+    private static bool SetStartupEntry(bool enabled)
+    {
         try
         {
             StartupRegistration.SetEnabled(enabled);
-            _config.StartWithWindows = enabled;
-            _config.TrySave(_configPath);
+            return true;
         }
         catch (Exception ex) when (ex is UnauthorizedAccessException or System.Security.SecurityException)
         {
             // Locked-down profile: the widget keeps working, it just will not autostart.
+            return false;
         }
     }
 

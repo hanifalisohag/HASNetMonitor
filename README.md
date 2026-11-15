@@ -353,11 +353,12 @@ the same thing, and also switches the glyphs to ClearType.
 
 ## Settings dialog
 
-Changes apply to the live widget immediately — the dialog also previews them on a mock
-taskbar.
+Changes apply to the live widget immediately, including start with Windows: the dialog
+has no preview of its own, so what you see on the taskbar is the real thing.
 
 - **OK** saves to `config.json`.
-- **Cancel** (or closing the window) restores what was there before you opened it.
+- **Cancel** (or closing the window) restores what was there before you opened it,
+  including the `Run` entry.
 
 Groups: **Look** (style, stacking, font, weight, bar shape, thickness, segment gap,
 font size, text), **Position** (offset from tray, nudges with arrow buttons, reset),

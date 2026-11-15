@@ -1,4 +1,3 @@
-using System.Drawing;
 using System.Reflection;
 using System.Windows.Forms;
 using HASNetMonitor.Core;
@@ -8,10 +7,10 @@ using Xunit;
 namespace HASNetMonitor.Tests;
 
 /// <summary>
-/// The dialog applies every change live: the preview picture and the running widget
-/// both follow the controls as they are touched, before OK is pressed. A control that
-/// is not wired into that path looks broken - the user picks a value, nothing moves,
-/// and only OK makes it appear.
+/// The dialog applies every change live: the running widget follows the controls as
+/// they are touched, before OK is pressed. A control that is not wired into that path
+/// looks broken - the user picks a value, nothing moves, and only OK makes it appear.
+/// The dialog has no preview of its own, so the live widget is the only feedback.
 /// </summary>
 public sealed class LivePreviewTests
 {
@@ -73,29 +72,6 @@ public sealed class LivePreviewTests
     }
 
     [Fact]
-    public void ThePreviewPictureFollowsTheArrowTypeBeforeOk()
-    {
-        RunOnSta(() =>
-        {
-            var config = new MonitorConfig();
-            config.Normalize();
-
-            using var form = new SettingsForm(config);
-            form.CreateControl();
-
-            SetCombo(form, "_arrowStyle", ArrowStyles.Classic);
-            string classic = PreviewSignature(form);
-
-            SetCombo(form, "_arrowStyle", ArrowStyles.None);
-            string none = PreviewSignature(form);
-
-            // The two pictures must differ: the preview is redrawn from the controls, so a
-            // style that never reaches it would leave the same bitmap in place.
-            Assert.NotEqual(classic, none);
-        });
-    }
-
-    [Fact]
     public void EveryPickerInTheDialogIsWiredForLiveUpdates()
     {
         RunOnSta(() =>
@@ -123,7 +99,11 @@ public sealed class LivePreviewTests
                 Assert.True(seen.Count > before, $"{field} is not wired for live updates");
             }
 
-            foreach (string field in new[] { "_arrowSize", "_fontSize", "_barThickness", "_segmentGap" })
+            foreach (string field in new[]
+            {
+                "_arrowSize", "_fontSize", "_barThickness", "_segmentGap",
+                "_nudgeX", "_nudgeY", "_offsetFromTray", "_maxScale", "_interval", "_backdropOpacity",
+            })
             {
                 var number = (NumericUpDown)Field(form, field);
                 int before = seen.Count;
@@ -133,27 +113,94 @@ public sealed class LivePreviewTests
         });
     }
 
-    /// <summary>
-    /// A cheap fingerprint of the preview picture: its size and a sample of its pixels.
-    /// Taken immediately, because the dialog disposes the previous bitmap when it
-    /// replaces it.
-    /// </summary>
-    private static string PreviewSignature(SettingsForm form)
+    [Fact]
+    public void EveryCheckBoxInTheDialogIsWiredForLiveUpdates()
     {
-        var image = (Image?)Field(form, "_preview", "Image");
-        Assert.NotNull(image);
-
-        using var bitmap = new Bitmap(image!);
-        var parts = new List<string> { $"{bitmap.Width}x{bitmap.Height}" };
-        for (int y = 0; y < bitmap.Height; y += Math.Max(1, bitmap.Height / 8))
+        RunOnSta(() =>
         {
-            for (int x = 0; x < bitmap.Width; x += Math.Max(1, bitmap.Width / 8))
+            var config = new MonitorConfig();
+            config.Normalize();
+
+            using var form = new SettingsForm(config);
+            var seen = new List<MonitorConfig>();
+            form.LiveChanged += (_, live) => seen.Add(live);
+
+            foreach (string field in new[]
             {
-                parts.Add(bitmap.GetPixel(x, y).ToArgb().ToString("X8"));
+                "_bold", "_italic", "_roundedBars", "_accentGlow", "_showText", "_showBackdrop",
+                "_crispText", "_sharedScale", "_autoScale", "_startWithWindows",
+            })
+            {
+                var check = (CheckBox)Field(form, field);
+                int before = seen.Count;
+                check.Checked = !check.Checked;
+                Assert.True(seen.Count > before, $"{field} is not wired for live updates");
+            }
+        });
+    }
+
+    /// <summary>
+    /// The dialog must not carry a preview of its own: the live widget is the feedback,
+    /// so a second picture would only show a stale or duplicated rendering.
+    /// </summary>
+    [Fact]
+    public void TheDialogHasNoPreviewOfItsOwn()
+    {
+        RunOnSta(() =>
+        {
+            var config = new MonitorConfig();
+            config.Normalize();
+
+            using var form = new SettingsForm(config);
+            form.CreateControl();
+
+            // The preview is gone, so nothing in the dialog may render a second copy of
+            // the widget: no picture box, and no group that offers one.
+            Assert.DoesNotContain(AllControls(form), c => c is PictureBox);
+            Assert.DoesNotContain(AllControls(form), c => c is GroupBox g && g.Text == "Preview");
+        });
+    }
+
+    /// <summary>
+    /// The live path must carry the value the user just picked, not the value the dialog
+    /// opened with: a control wired to the wrong field would still raise an event.
+    /// </summary>
+    [Fact]
+    public void TheLiveConfigCarriesTheValueJustPicked()
+    {
+        RunOnSta(() =>
+        {
+            var config = new MonitorConfig();
+            config.Normalize();
+
+            using var form = new SettingsForm(config);
+            var seen = new List<MonitorConfig>();
+            form.LiveChanged += (_, live) => seen.Add(live);
+
+            var thickness = (NumericUpDown)Field(form, "_barThickness");
+            thickness.Value = thickness.Value == thickness.Minimum ? thickness.Maximum : thickness.Minimum;
+            Assert.Equal((int)thickness.Value, seen[^1].BarThicknessPx);
+
+            var autoScale = (CheckBox)Field(form, "_autoScale");
+            autoScale.Checked = !autoScale.Checked;
+            Assert.Equal(autoScale.Checked, seen[^1].AutoScale);
+
+            var interval = (NumericUpDown)Field(form, "_interval");
+            interval.Value = interval.Value == interval.Minimum ? interval.Maximum : interval.Minimum;
+            Assert.Equal((int)interval.Value, seen[^1].RefreshIntervalMs);
+        });
+    }
+
+    private static IEnumerable<Control> AllControls(Control root)
+    {
+        foreach (Control child in root.Controls)
+        {
+            yield return child;
+            foreach (Control nested in AllControls(child))
+            {
+                yield return nested;
             }
         }
-
-        return string.Join(",", parts);
     }
 
     private static void SetCombo(SettingsForm form, string field, string key)
