@@ -313,9 +313,10 @@ internal sealed class SettingsForm : Form
 
         foreach (Control input in new Control[]
         {
-            _style, _sortOrder, _fontFamily, _arrowSize, _bold, _italic, _roundedBars, _accentGlow,
-            _showText, _showBackdrop, _crispText, _sharedScale, _barThickness, _segmentGap, _fontSize,
-            _nudgeX, _nudgeY, _offsetFromTray, _nudgeLeft, _nudgeRight, _nudgeUp, _nudgeDown, _resetNudge,
+            _style, _sortOrder, _fontFamily, _arrowSize, _arrowStyle, _bold, _italic, _roundedBars,
+            _accentGlow, _showText, _showBackdrop, _crispText, _sharedScale, _barThickness, _segmentGap,
+            _fontSize, _nudgeX, _nudgeY, _offsetFromTray, _nudgeLeft, _nudgeRight, _nudgeUp, _nudgeDown,
+            _resetNudge, _downloadTextMode, _uploadTextMode,
         })
         {
             WireForPreview(input);
