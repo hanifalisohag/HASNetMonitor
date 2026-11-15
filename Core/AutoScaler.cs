@@ -19,9 +19,24 @@ internal sealed class AutoScaler
     /// <summary>Time constant of the decay towards the current rate, in seconds.</summary>
     public const double DecaySeconds = 4.0;
 
+    /// <summary>
+    /// How long a rate may sit below the current scale before it drops a step. Rising is
+    /// immediate so a burst is never clipped; falling waits, so a rate hovering on a step
+    /// boundary cannot flicker the whole row between two lengths every sample.
+    /// </summary>
+    public const double StepDownHoldSeconds = 3.0;
+
+    /// <summary>
+    /// The largest step the ramp will climb to. Nothing on a network counter reaches it;
+    /// it exists so a nonsense rate cannot spin <see cref="NextScaleStep"/>.
+    /// </summary>
+    public const double MaximumScaleStep = 1024.0 * 1024 * 1024 * 1024;
+
     private double _downloadPeak = MinimumPeakBytesPerSecond;
     private double _uploadPeak = MinimumPeakBytesPerSecond;
     private double _sharedPeak = MinimumPeakBytesPerSecond;
+    private double _scaleStep = MinimumPeakBytesPerSecond;
+    private double _belowSeconds;
 
     public double DownloadPeak => Math.Max(_downloadPeak, MinimumPeakBytesPerSecond);
 
@@ -45,6 +60,8 @@ internal sealed class AutoScaler
         _downloadPeak = MinimumPeakBytesPerSecond;
         _uploadPeak = MinimumPeakBytesPerSecond;
         _sharedPeak = MinimumPeakBytesPerSecond;
+        _scaleStep = MinimumPeakBytesPerSecond;
+        _belowSeconds = 0;
     }
 
     public void Update(
@@ -62,6 +79,8 @@ internal sealed class AutoScaler
             _downloadPeak = manual;
             _uploadPeak = manual;
             _sharedPeak = manual;
+            _scaleStep = manual;
+            _belowSeconds = 0;
             return;
         }
 
@@ -74,10 +93,59 @@ internal sealed class AutoScaler
 
         // One reference for both rows: whichever direction is moving faster is full
         // scale, so the other row sits where its rate really puts it.
-        _sharedPeak = NextPeak(
-            _sharedPeak,
-            Math.Max(ToRate(downloadBytesPerSecond), ToRate(uploadBytesPerSecond)),
-            decay);
+        double fastest = Math.Max(ToRate(downloadBytesPerSecond), ToRate(uploadBytesPerSecond));
+        _sharedPeak = NextPeak(_sharedPeak, fastest, decay);
+
+        AdvanceScaleStep(fastest, elapsedSeconds);
+    }
+
+    /// <summary>
+    /// Moves the drawn scale to the next round step for the fastest direction, up at
+    /// once and down only after <see cref="StepDownHoldSeconds"/>.
+    /// </summary>
+    private void AdvanceScaleStep(double fastestBytesPerSecond, double elapsedSeconds)
+    {
+        double target = NextScaleStep(fastestBytesPerSecond);
+
+        if (target > _scaleStep)
+        {
+            _scaleStep = target;
+            _belowSeconds = 0;
+            return;
+        }
+
+        if (target < _scaleStep)
+        {
+            _belowSeconds += Math.Max(elapsedSeconds, 0);
+            if (_belowSeconds >= StepDownHoldSeconds)
+            {
+                _scaleStep = target;
+                _belowSeconds = 0;
+            }
+
+            return;
+        }
+
+        _belowSeconds = 0;
+    }
+
+    /// <summary>
+    /// The next round full-scale step at or above a rate: the scale only ever shows
+    /// 16 KB/s, 32 KB/s, 64 KB/s ... 512 KB/s, 1 MB/s, 2 MB/s and so on, so a bar length
+    /// means a rate the user can name. 15 KB/s fills against 16 KB/s, 345 KB/s against
+    /// 512 KB/s, 564 KB/s against 1 MB/s.
+    /// </summary>
+    public static double NextScaleStep(double bytesPerSecond)
+    {
+        double rate = ToRate(bytesPerSecond);
+        double step = MinimumPeakBytesPerSecond;
+
+        while (step < rate && step < MaximumScaleStep)
+        {
+            step *= 2;
+        }
+
+        return step;
     }
 
     private static double NextPeak(double peak, double rate, double decay)
@@ -95,11 +163,20 @@ internal sealed class AutoScaler
     public double UploadRatio(double bytesPerSecond) => Ratio(bytesPerSecond, UploadPeak);
 
     /// <summary>
-    /// The ratio of a rate against the shared full-scale rate, whatever the mode: the
+    /// The full-scale rate the bars are drawn against: the round step the traffic has
+    /// climbed to, or the manual peak when auto-scaling is off.
+    /// </summary>
+    public double ScaleBytesPerSecond => AutoScale ? ScaleStepBytesPerSecond : SharedPeak;
+
+    /// <summary>The round step the scale has climbed to, in bytes per second.</summary>
+    public double ScaleStepBytesPerSecond => Math.Max(_scaleStep, MinimumPeakBytesPerSecond);
+
+    /// <summary>
+    /// The ratio of a rate against the drawn full-scale rate, whatever the mode: the
     /// same rate gives the same number for either direction, which is what makes the
     /// two rows comparable.
     /// </summary>
-    public double SharedRatio(double bytesPerSecond) => Ratio(bytesPerSecond, SharedPeak);
+    public double SharedRatio(double bytesPerSecond) => Ratio(bytesPerSecond, ScaleBytesPerSecond);
 
     /// <summary>
     /// The ratio to draw for a row. With <see cref="SharedScale"/> on this is the shared

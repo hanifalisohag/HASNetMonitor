@@ -274,18 +274,32 @@ only, and the renderer draws the two runs side by side from the configured colou
 ### How the two bars are scaled
 
 Both rows are measured against **one** full-scale rate — the faster of the two
-directions, decaying over a few seconds — so the bars can be compared directly: 10 MB/s
-down beside 14 KB/s up draws a full download row and an upload row a pixel wide, exactly
-as the numbers say. This is the default (`SharedScale: true`, **Bar scale: One scale for
-both bars** in the Look group).
+directions — so the bars can be compared directly: 10 MB/s down beside 14 KB/s up draws a
+long download row and an upload row a pixel wide, exactly as the numbers say. This is the
+default (`SharedScale: true`, **Bar scale: One scale for both bars** in the Look group).
+
+That full scale is a **round step**, not whatever the rate happened to be. The steps
+double from 16 KB/s: 16, 32, 64, 128, 256, 512 KB/s, 1 MB/s, 2, 4, 8 MB/s and up. The
+faster direction picks the next step at or above it, and both bars fill against that
+step, so a bar length always means a rate that can be named:
+
+| fastest rate | full scale | download bar (of 60 px) | upload bar |
+| --- | --- | --- | --- |
+| 15 KB/s / 10 KB/s | 16 KB/s | 56 px | 38 px |
+| 345 KB/s / 564 KB/s | 1 MB/s (1024 KB/s) | 20 px | 33 px |
+
+The scale rises at once, so a burst is never clipped, and falls only after the rate has
+stayed below it for 3 seconds (`AutoScaler.StepDownHoldSeconds`). Because a rate just
+under the current step still selects that same step, a rate sitting on a boundary cannot
+flicker the row between two lengths.
 
 Turned off, each direction fills against **its own** peak. That keeps a trickle of
 upload visible beside a flood of download, at the cost of both rows reading "full" no
 matter how they compare — 14 KB/s of upload drew 53 of 60 px next to 10 MB/s of
 download.
 
-With `AutoScale` off, `MaxScaleMbps` is one peak for both rows either way, so the option
-only changes what auto-scaling does.
+With `AutoScale` off, `MaxScaleMbps` is one peak for both rows either way, used exactly as
+entered rather than snapped to a step, so the option only changes what auto-scaling does.
 
 ### Sharpness: matching the clock exactly
 
