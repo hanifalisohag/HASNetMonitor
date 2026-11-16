@@ -122,16 +122,30 @@ internal static class WidgetPresets
     private const double TextTintLuminanceCeiling = 0.45;
 
     /// <summary>
-    /// The gallery, in the order the dialog lists it. "Harbour" is first and is exactly
-    /// the look a fresh install starts with, so the default is never missing from the list.
+    /// The gallery, in the order the dialog lists it. "HAS Preset" is first: it is the look
+    /// a fresh install starts with (<see cref="MonitorConfig.CreateInitial"/> and
+    /// installer/config.default.json), so the default is never missing from the list and the
+    /// dialog can name it on a first run.
     /// </summary>
     public static IReadOnlyList<WidgetPreset> All { get; } =
     [
+        // The start-up look. This must reproduce new MonitorConfig() exactly - a fresh
+        // install has no config file, so the constructor is what the user first sees - and
+        // it is first so the picker can name it on first run instead of saying Custom.
         new(
-            "Harbour (default)", "The look the app starts with: green down, red up, plain bars.",
+            "HAS Preset", "The look a new install starts with: green and red bars, plain figures.",
             "#2ECC71","#E74C3C", WidgetStyles.Bars, ArrowStyles.Classic, StackOrder.DownloadFirst,
             3, 2, 9, 150,
             downloadTextMode: TextColorModes.Auto, uploadTextMode: TextColorModes.Auto),
+
+        // A real config someone actually ran, kept in the gallery as its own entry.
+        new(
+            "Harbour", "Vertical segments with both figures tinted by their bar.",
+            "#2ECC71","#E6643C", WidgetStyles.SidebarSegments, ArrowStyles.Small, StackOrder.UploadFirst,
+            4, 0, 10.5, 150, bold: true, roundedBars: true,
+            backdropOpacity: 255,
+            downloadTextMode: TextColorModes.Bar, downloadTextColor: "#2ECC71",
+            uploadTextMode: TextColorModes.Bar, uploadTextColor: "#E6643C"),
 
         new(
             "Cobalt", "Cool blue against warm amber, in chunky separated blocks.",
@@ -292,6 +306,56 @@ internal static class WidgetPresets
         }
 
         return null;
+    }
+
+    /// <summary>
+    /// The preset with this name, searching <paramref name="extra"/> - the user's saved
+    /// looks - as well as the built-in gallery. Built-ins are searched first and cannot be
+    /// shadowed, because a saved preset may not take a built-in's name.
+    /// </summary>
+    public static WidgetPreset? Find(string? name, IEnumerable<WidgetPreset>? extra)
+    {
+        WidgetPreset? builtIn = Find(name);
+        if (builtIn is not null || extra is null || string.IsNullOrWhiteSpace(name))
+        {
+            return builtIn;
+        }
+
+        string wanted = UserPresets.NormalizeName(name);
+        foreach (WidgetPreset preset in extra)
+        {
+            if (string.Equals(UserPresets.NormalizeName(preset.Name), wanted, StringComparison.OrdinalIgnoreCase))
+            {
+                return preset;
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// The look that draws exactly this config, searching the saved presets as well as the
+    /// built-ins. A saved preset wins when both match, since the user made it deliberately.
+    /// </summary>
+    public static WidgetPreset? FindByAppearance(MonitorConfig config, IEnumerable<WidgetPreset>? extra)
+    {
+        if (config is null)
+        {
+            throw new ArgumentNullException(nameof(config));
+        }
+
+        if (extra is not null)
+        {
+            foreach (WidgetPreset preset in extra)
+            {
+                if (AppearanceEquals(config, Apply(preset, config)))
+                {
+                    return preset;
+                }
+            }
+        }
+
+        return FindByAppearance(config);
     }
 
     /// <summary>

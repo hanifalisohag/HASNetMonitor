@@ -19,13 +19,21 @@ shell hides or buries it.
 
 ## Presets
 
-Twenty-four ready-made looks, applied in one click from **Settings → Presets**. A preset sets
+Twenty-five ready-made looks, applied in one click from **Settings → Presets**. A preset sets
 the colours, style, bar thickness, arrow style, font size, bold/italic and the plate in one
 go; it leaves the refresh rate, the scale and the position alone, since those are not part of
-a look.
+a look. The first entry, **HAS Preset**, is the look a new install starts with.
 
 Choosing **Custom** returns the dialog to hand editing. Editing any control after applying a
 preset also drops the picker back to Custom, because the name would no longer be true.
+
+Below the built-in gallery, **Saved looks** keeps your own. Set the widget up the way you
+like, press **Save current**, give it a name, and it is written to `presets.json` beside
+`config.json` and offered in that list from then on - including after an upgrade or a
+restart. **Delete** removes the selected one; the last remaining saved look is kept so the
+list never goes empty on you. A saved look stores the same fields a built-in preset does, so
+picking it reproduces exactly what you saved and never touches the refresh rate, the scale or
+the position.
 
 Every preset is checked to stay visible on both a dark and a light taskbar: a bar colour that
 would sink into the background is rejected, so no preset can render an empty-looking widget.

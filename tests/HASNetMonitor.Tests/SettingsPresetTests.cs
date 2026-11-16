@@ -225,14 +225,19 @@ public sealed class SettingsPresetTests
     /// <summary>
     /// The presets row is extra height on a fixed-height dialog. A netbook screen is 768 px
     /// tall, so the dialog has to stay well inside it or the OK button is off screen and the
-    /// user cannot commit a preset they just picked.
+    /// user cannot commit a preset they just picked. Checked with looks saved too: the
+    /// saved-look row grows taller than the placeholder version.
     /// </summary>
     [Fact]
     public void TheDialogFitsOnASmallScreen()
     {
+        using var temp = new TempFolder();
+        string path = Path.Combine(temp.Path, "presets.json");
+
         using var form = RunOnUiThread(() =>
         {
-            var built = new SettingsForm(new MonitorConfig());
+            var built = new SettingsForm(new MonitorConfig(), path);
+            built.SavePresetForTest("A fairly long saved look name");
             built.PerformLayout();
             return built;
         });
@@ -249,6 +254,241 @@ public sealed class SettingsPresetTests
         // A 768 px netbook screen leaves ~740 px usable once the taskbar and title bar are
         // accounted for; anything above that hides the OK button.
         Assert.True(form.Height <= 740, $"dialog is {form.Height} px tall, which will not fit 768 px");
+    }
+
+    /// <summary>
+    /// A saved look survives: it is written to the file, shows up in the picker straight
+    /// away, and reopening the dialog finds it again and names it. That last part is the
+    /// whole point of saving - a preset that only lives until the dialog closes is useless.
+    /// </summary>
+    [Fact]
+    public void ASavedLookIsWrittenAndComesBackOnReopen()
+    {
+        using var temp = new TempFolder();
+        string path = Path.Combine(temp.Path, "presets.json");
+        MonitorConfig look = WidgetPresets.Apply(WidgetPresets.Find("Ember")!, new MonitorConfig());
+
+        (IReadOnlyList<string> names, string? selected, string? note) = RunOnUiThread(() =>
+        {
+            using var form = new SettingsForm(look, path);
+            bool saved = form.SavePresetForTest("Night Shift");
+            return (form.SavedPresetNamesForTest, form.SelectedSavedPresetForTest, form.NoteForTest);
+        });
+
+        Assert.True(File.Exists(path), "saving did not write the preset file");
+        Assert.Contains("Night Shift", names);
+        Assert.Equal("Night Shift", selected);
+        Assert.Equal("Night Shift", note);
+
+        // A fresh dialog over the same file must offer it and match the look to it.
+        (IReadOnlyList<string> reopened, string? named) = RunOnUiThread(() =>
+        {
+            using var form = new SettingsForm(look, path);
+            return (form.SavedPresetNamesForTest, form.SelectedSavedPresetForTest);
+        });
+
+        Assert.Contains("Night Shift", reopened);
+        Assert.Equal("Night Shift", named);
+    }
+
+    /// <summary>
+    /// Saving must store what the dialog shows, not a half-applied mix: what the dialog
+    /// rebuilds after choosing the saved entry has to be the look that was saved.
+    /// </summary>
+    [Fact]
+    public void ASavedLookIsReappliedExactly()
+    {
+        using var temp = new TempFolder();
+        string path = Path.Combine(temp.Path, "presets.json");
+        MonitorConfig start = WidgetPresets.Apply(WidgetPresets.Find("Citrus")!, new MonitorConfig());
+
+        (MonitorConfig saved, MonitorConfig restored) = RunOnUiThread(() =>
+        {
+            MonitorConfig atSave;
+            using (var form = new SettingsForm(start, path))
+            {
+                atSave = form.BuildResult();
+                form.SavePresetForTest("Loud");
+            }
+
+            using var reopened = new SettingsForm(new MonitorConfig(), path);
+            reopened.SelectSavedPresetForTest("Loud");
+            return (atSave, reopened.BuildResult());
+        });
+
+        Assert.True(
+            WidgetPresets.AppearanceEquals(saved.Normalize(), restored.Normalize()),
+            "the look read back from disk is not the look that was saved");
+    }
+
+    /// <summary>
+    /// Built-in names are taken. A saved preset may not shadow one, or the picker would show
+    /// two entries with the same name pointing at different looks.
+    /// </summary>
+    [Fact]
+    public void ASavedLookCannotShadowABuiltInName()
+    {
+        using var temp = new TempFolder();
+
+        bool saved = RunOnUiThread(() =>
+        {
+            using var form = new SettingsForm(new MonitorConfig(), Path.Combine(temp.Path, "presets.json"));
+            return form.SavePresetForTest("Harbour");
+        });
+
+        Assert.False(saved);
+    }
+
+    /// <summary>
+    /// Names are trimmed, blank is refused, and the duplicate check is case-insensitive so
+    /// "my look" and "My Look" cannot both exist.
+    /// </summary>
+    [Fact]
+    public void SavedLookNamesAreTrimmedAndUnique()
+    {
+        using var temp = new TempFolder();
+        string path = Path.Combine(temp.Path, "presets.json");
+
+        (bool first, bool blank, bool duplicate) = RunOnUiThread(() =>
+        {
+            using var form = new SettingsForm(new MonitorConfig(), path);
+            bool a = form.SavePresetForTest("  Evening  ");
+            bool b = form.SavePresetForTest("   ");
+            bool c = form.SavePresetForTest("evening");
+            return (a, b, c);
+        });
+
+        Assert.True(first);
+        Assert.False(blank, "a blank name was accepted");
+        Assert.False(duplicate, "the same name in another case was accepted twice");
+
+        IReadOnlyList<WidgetPreset> stored = UserPresets.Load(path);
+        Assert.Single(stored);
+        Assert.Equal("Evening", stored[0].Name);
+    }
+
+    /// <summary>
+    /// Deleting removes one saved look and keeps the rest. Deleting the only one is refused,
+    /// because the picker would then have nothing to show.
+    /// </summary>
+    [Fact]
+    public void DeletingASavedLookKeepsTheOthers()
+    {
+        using var temp = new TempFolder();
+        string path = Path.Combine(temp.Path, "presets.json");
+
+        RunOnUiThread(() =>
+        {
+            using var form = new SettingsForm(new MonitorConfig(), path);
+            form.SavePresetForTest("One");
+            form.SavePresetForTest("Two");
+            form.DeletePresetForTest("One");
+            return 0;
+        });
+
+        IReadOnlyList<WidgetPreset> left = UserPresets.Load(path);
+        Assert.Single(left);
+        Assert.Equal("Two", left[0].Name);
+    }
+
+    /// <summary>
+    /// With nothing saved there is nothing to delete, and the picker says so instead of
+    /// showing an empty box that looks broken.
+    /// </summary>
+    [Fact]
+    public void WithNothingSavedTheDeleteButtonIsOff()
+    {
+        using var temp = new TempFolder();
+
+        (bool canDelete, IReadOnlyList<string> entries) = RunOnUiThread(() =>
+        {
+            using var form = new SettingsForm(new MonitorConfig(), Path.Combine(temp.Path, "presets.json"));
+            return (form.CanDeleteSavedPresetForTest, form.SavedPresetNamesForTest);
+        });
+
+        Assert.False(canDelete, "there is nothing to delete, so the button must be off");
+        Assert.Equal([SettingsForm.NoSavedPresets], entries);
+    }
+
+    /// <summary>
+    /// Saving must not repaint the widget either. The saved picker is rebuilt after a save,
+    /// and if that rebuild applied an entry the taskbar would jump to a different look the
+    /// moment the user pressed Save.
+    /// </summary>
+    [Fact]
+    public void SavingASavedLookDoesNotChangeTheCurrentLook()
+    {
+        using var temp = new TempFolder();
+        string path = Path.Combine(temp.Path, "presets.json");
+        MonitorConfig current = WidgetPresets.Apply(WidgetPresets.Find("Ember")!, new MonitorConfig());
+
+        RunOnUiThread(() =>
+        {
+            using var form = new SettingsForm(current, path);
+
+            // An earlier, different look, so a repaint would land on a value we can see.
+            form.FillForTest(WidgetPresets.Apply(WidgetPresets.Find("Aurora")!, new MonitorConfig()));
+            form.SavePresetForTest("Aurora look");
+
+            form.FillForTest(current);
+            MonitorConfig beforeSave = form.BuildResult();
+            form.SavePresetForTest("Ember look");
+            MonitorConfig afterSave = form.BuildResult();
+
+            Assert.True(
+                WidgetPresets.AppearanceEquals(beforeSave.Normalize(), afterSave.Normalize()),
+                "saving a look changed the settings on screen");
+
+            return 0;
+        });
+    }
+
+    /// <summary>
+    /// A corrupt or unreadable preset file must not stop the dialog opening. The built-in
+    /// gallery is still usable and saving can recover the file.
+    /// </summary>
+    [Fact]
+    public void AnUnreadablePresetFileDoesNotBreakTheDialog()
+    {
+        using var temp = new TempFolder();
+        string path = Path.Combine(temp.Path, "presets.json");
+        File.WriteAllText(path, "{ this is not json ");
+
+        (IReadOnlyList<string> names, bool saved) = RunOnUiThread(() =>
+        {
+            using var form = new SettingsForm(new MonitorConfig(), path);
+            bool ok = form.SavePresetForTest("Recovered");
+            return (form.SavedPresetNamesForTest, ok);
+        });
+
+        Assert.Contains("Recovered", names);
+        Assert.True(saved);
+        Assert.Single(UserPresets.Load(path));
+    }
+
+    private sealed class TempFolder : IDisposable
+    {
+        public TempFolder()
+        {
+            Path = System.IO.Path.Combine(
+                System.IO.Path.GetTempPath(),
+                "hasmon-presets-" + Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(Path);
+        }
+
+        public string Path { get; }
+
+        public void Dispose()
+        {
+            try
+            {
+                Directory.Delete(Path, recursive: true);
+            }
+            catch (IOException)
+            {
+                // A leftover temp folder is not a test failure.
+            }
+        }
     }
 
     private static T RunOnUiThread<T>(Func<T> work)

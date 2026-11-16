@@ -52,6 +52,21 @@ internal sealed class SettingsForm : Form
     private readonly Button _uploadTextColorButton;
     private readonly ComboBox _presetBox;
     private readonly Label _presetNote;
+    private readonly Button _savePresetButton;
+
+    /// <summary>
+    /// The file the saved looks live in, or null when the dialog must not touch the disk.
+    /// </summary>
+    private readonly string? _presetPath;
+
+    /// <summary>
+    /// The user's saved looks, loaded once so the picker and the name-on-reopen lookup see
+    /// the same list. Empty when the file is absent or unreadable.
+    /// </summary>
+    private IReadOnlyList<WidgetPreset> _userPresets;
+
+    private ComboBox _userBox = null!;
+    private Button _deletePresetButton = null!;
 
     /// <summary>
     /// Set while a preset is being pushed into the controls, so the events each setter
@@ -59,12 +74,40 @@ internal sealed class SettingsForm : Form
     /// </summary>
     private bool _applyingPreset;
 
+    /// <summary>
+    /// The picker entry that means "these settings match no preset". It is not a choice:
+    /// selecting it applies nothing.
+    /// </summary>
+    internal const string CustomEntry = "Custom";
+
+    /// <summary>
+    /// The saved-look picker's placeholder when there is nothing saved yet. A DropDownList
+    /// cannot be empty without looking broken, and the entry must not be mistaken for a
+    /// preset name.
+    /// </summary>
+    internal const string NoSavedPresets = "No saved looks yet";
+
     public SettingsForm(MonitorConfig config)
+        : this(config, UserPresets.DefaultPath)
+    {
+    }
+
+    /// <summary>
+    /// Builds the dialog against a specific preset file. A null path means "do not touch the
+    /// disk": the picker shows the built-in gallery and saving does nothing. The tests use
+    /// that so they never write to a real profile.
+    /// </summary>
+    internal SettingsForm(MonitorConfig config, string? presetPath)
     {
         if (config is null)
         {
             throw new ArgumentNullException(nameof(config));
         }
+
+        _presetPath = presetPath;
+        _userPresets = presetPath is null
+            ? Array.Empty<WidgetPreset>()
+            : UserPresets.Load(presetPath);
 
         Text = "Taskbar Network Monitor \u2013 Settings";
 
@@ -235,6 +278,34 @@ internal sealed class SettingsForm : Form
         AddRow(presets, "Look:", _presetBox);
         AddRow(presets, string.Empty, _presetNote);
 
+        // Filling the saved-look picker decides whether Delete is enabled, so both buttons
+        // exist before the picker is built.
+        _savePresetButton = new Button
+        {
+            Text = "Save current",
+            AutoSize = true,
+            Margin = new Padding(6, 0, 0, 0),
+            AccessibleDescription = "Saves the colours and shape currently shown as a preset "
+                + "you can pick again later. Only the look is saved.",
+        };
+        _savePresetButton.Click += (_, _) => SaveCurrentLookAsPreset();
+
+        _deletePresetButton = new Button
+        {
+            Text = "Delete",
+            AutoSize = true,
+            Margin = new Padding(6, 0, 0, 0),
+            AccessibleDescription = "Removes the saved preset selected on the left.",
+        };
+        _deletePresetButton.Click += (_, _) => DeleteSelectedUserPreset();
+
+        _userBox = CreateUserPresetBox();
+        _userBox.SelectedIndexChanged += (_, _) => ApplySelectedUserPreset();
+
+        var savedRow = Combine(_userBox, _savePresetButton, _deletePresetButton);
+        savedRow.Margin = new Padding(0, 4, 0, 4);
+        AddRow(presets, "Saved looks:", savedRow);
+
         var position = CreateGroup("Position");
         AddRow(position, "Offset from tray (px):", _offsetFromTray);
         AddRow(position, "Nudge left / right (px):", Combine(_nudgeX, _nudgeLeft, _nudgeRight));
@@ -361,12 +432,33 @@ internal sealed class SettingsForm : Form
     /// </summary>
     private void ApplySelectedPreset()
     {
+        ApplyPreset(_presetBox.SelectedItem as string, builtInOnly: true);
+    }
+
+    /// <summary>
+    /// Applies a look from the saved-look picker. The two pickers share one path so a saved
+    /// preset and a built-in cannot drift apart in what they set.
+    /// </summary>
+    private void ApplySelectedUserPreset()
+    {
+        if (_applyingPreset || _userBox.SelectedItem is not string name || name == NoSavedPresets)
+        {
+            return;
+        }
+
+        ApplyPreset(name, builtInOnly: false);
+    }
+
+    private void ApplyPreset(string? name, bool builtInOnly)
+    {
         if (_applyingPreset)
         {
             return;
         }
 
-        WidgetPreset? preset = WidgetPresets.Find(_presetBox.SelectedItem as string);
+        WidgetPreset? preset = builtInOnly
+            ? WidgetPresets.Find(name)
+            : WidgetPresets.Find(name, _userPresets);
         if (preset is null)
         {
             return;
@@ -393,8 +485,10 @@ internal sealed class SettingsForm : Form
     }
 
     /// <summary>
-    /// Names the preset the controls currently describe, or "Custom" once they have been
-    /// edited away from every one of them.
+    /// Names the built-in preset the controls currently describe, or "Custom" once they have
+    /// been edited away from every one of them. Saved looks are deliberately not named here:
+    /// they live in their own picker, and one of them matching the current look does not
+    /// make it the preset the user chose from this list.
     /// </summary>
     private void SyncPresetLabel()
     {
@@ -416,6 +510,8 @@ internal sealed class SettingsForm : Form
 
         _presetNote.Text = match?.Description
             ?? "Custom: your own mix of settings. Pick a preset to start from a known look.";
+
+        SyncUserPresetSelection();
     }
 
     /// <summary>
@@ -457,7 +553,7 @@ internal sealed class SettingsForm : Form
         _uploadTextMode.SelectedIndex = IndexOfChoice(_uploadTextMode, TextColorModes.Normalize(config.UploadTextColorMode));
     }
 
-    private static ComboBox CreatePresetBox()
+    private ComboBox CreatePresetBox()
     {
         var combo = new ComboBox
         {
@@ -473,6 +569,235 @@ internal sealed class SettingsForm : Form
         }
 
         return combo;
+    }
+
+    /// <summary>
+    /// The picker for the user's own looks. It starts with a placeholder, because nothing is
+    /// selected until the user picks one - the look on screen may match no saved preset at
+    /// all, and a picker that claimed one would be lying.
+    /// </summary>
+    private ComboBox CreateUserPresetBox()
+    {
+        var combo = new ComboBox
+        {
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Width = 190,
+            AccessibleDescription = "Looks you saved yourself. Choosing one applies it; Delete "
+                + "removes it.",
+        };
+
+        FillUserPresetBox(combo);
+        return combo;
+    }
+
+    /// <summary>
+    /// Rebuilds the saved-look picker from <see cref="_userPresets"/>. Called on open and
+    /// after a save or delete, so the list is never a step behind the file.
+    /// </summary>
+    private void FillUserPresetBox(ComboBox combo, string? select = null)
+    {
+        // Rebuilding fires SelectedIndexChanged, which applies the entry. That would repaint
+        // the widget to a different look just because a preset was saved or deleted, so the
+        // guard is held for the whole rebuild.
+        bool wasApplying = _applyingPreset;
+        _applyingPreset = true;
+        combo.BeginUpdate();
+        try
+        {
+            combo.Items.Clear();
+            foreach (WidgetPreset preset in _userPresets)
+            {
+                combo.Items.Add(preset.Name);
+            }
+
+            if (combo.Items.Count == 0)
+            {
+                combo.Items.Add(NoSavedPresets);
+                combo.SelectedIndex = 0;
+            }
+            else
+            {
+                // Nothing selected by default: the entry above may be a different look, and a
+                // picker that names it would be claiming the controls already show it. The
+                // caller passes a name only when the controls really are that look.
+                int index = select is null ? -1 : combo.Items.IndexOf(select);
+                combo.SelectedIndex = index;
+            }
+        }
+        finally
+        {
+            combo.EndUpdate();
+            _applyingPreset = wasApplying;
+        }
+
+        _deletePresetButton.Enabled = _userPresets.Count > 0;
+    }
+
+    /// <summary>
+    /// Marks the saved look whose appearance the controls currently show, if any. Called
+    /// once the controls are filled, so the picker never names a look that is not on screen.
+    /// </summary>
+    private void SyncUserPresetSelection()
+    {
+        if (_userBox is null || _userPresets.Count == 0)
+        {
+            return;
+        }
+
+        WidgetPreset? match = WidgetPresets.FindByAppearance(BuildResult(), _userPresets);
+
+        bool wasApplying = _applyingPreset;
+        _applyingPreset = true;
+        try
+        {
+            _userBox.SelectedIndex = match is null ? -1 : _userBox.Items.IndexOf(match.Name);
+        }
+        finally
+        {
+            _applyingPreset = wasApplying;
+        }
+    }
+
+    /// <summary>
+    /// Takes the look currently shown in the controls, asks for a name, and saves it. The
+    /// new entry is selected immediately, so the user sees the preset they just made rather
+    /// than wondering whether it took.
+    /// </summary>
+    private void SaveCurrentLookAsPreset()
+    {
+        if (_presetPath is null)
+        {
+            return;
+        }
+
+        string? typed = PresetNamePrompt.Ask(this, SuggestPresetName(), ValidateNewPresetName);
+        if (typed is null)
+        {
+            return;
+        }
+
+        // Built through the same DTO the file uses, so a preset saved now and the same
+        // preset read back from disk are identical - one normalization, both directions.
+        WidgetPreset preset = UserPreset.FromConfig(UserPresets.NormalizeName(typed), BuildResult()).ToPreset();
+
+        bool saved = UserPresets.TrySave(preset, _presetPath, out IReadOnlyList<WidgetPreset> stored, out string? error);
+
+        // A failed write keeps the look for this session: losing a name the user has just
+        // typed is worse than a preset that vanishes when the dialog closes.
+        _userPresets = saved
+            ? stored
+            : [.. _userPresets.Where(p => !string.Equals(p.Name, preset.Name, StringComparison.OrdinalIgnoreCase)), preset];
+
+        FillUserPresetBox(_userBox, preset.Name);
+        SyncPresetLabel();
+
+        _presetNote.Text = saved
+            ? $"Saved \"{preset.Name}\". Pick it from Saved looks any time."
+            : $"Saved \"{preset.Name}\" for this session only: {Path.GetFileName(_presetPath)} could not be written ({error}).";
+    }
+
+    /// <summary>
+    /// Removes the selected saved look. Refused while it is the only entry, because an empty
+    /// picker would then have nothing to show, and the user can always overwrite instead.
+    /// </summary>
+    private void DeleteSelectedUserPreset()
+    {
+        if (_presetPath is null || _userPresets.Count == 0)
+        {
+            return;
+        }
+
+        if (_userPresets.Count <= 1)
+        {
+            MessageBox.Show(
+                this,
+                "This is the only saved look. Save another one before deleting it, or just "
+                    + "overwrite it by saving under the same name.",
+                "Delete preset",
+                MessageBoxButtons.OK,
+                MessageBoxIcon.Information);
+            return;
+        }
+
+        string? selected = _userBox.SelectedItem as string;
+        WidgetPreset? preset = WidgetPresets.Find(selected, _userPresets);
+        if (preset is null)
+        {
+            return;
+        }
+
+        DialogResult answer = MessageBox.Show(
+            this,
+            $"Delete the preset \"{preset.Name}\"? This only removes the saved look; the "
+                + $"current settings stay as they are.",
+            "Delete preset",
+            MessageBoxButtons.YesNo,
+            MessageBoxIcon.Question,
+            MessageBoxDefaultButton.Button2);
+
+        if (answer != DialogResult.Yes)
+        {
+            return;
+        }
+
+        // Hold on to the neighbour so the picker lands on something predictable instead of
+        // jumping back to the first entry, which reads as another look being applied.
+        string? neighbour = _userPresets
+            .Select(p => p.Name)
+            .FirstOrDefault(n => !string.Equals(n, preset.Name, StringComparison.OrdinalIgnoreCase));
+
+        _userPresets = _userPresets
+            .Where(p => !string.Equals(p.Name, preset.Name, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        bool written = UserPresets.TryWrite(_presetPath, _userPresets, out string? error);
+
+        FillUserPresetBox(_userBox, neighbour);
+        SyncPresetLabel();
+
+        _presetNote.Text = written
+            ? $"Deleted \"{preset.Name}\"."
+            : $"\"{preset.Name}\" is gone from the list, but {Path.GetFileName(_presetPath)} could not be written ({error}).";
+    }
+
+    /// <summary>
+    /// Why this name cannot be used for a new preset, or null when it can. Built-in names
+    /// are already refused by the store; an existing saved name is refused here so the user
+    /// is not silently overwriting a look they kept.
+    /// </summary>
+    private string? ValidateNewPresetName(string? raw)
+    {
+        string? problem = UserPresets.ValidateName(raw);
+        if (problem is not null)
+        {
+            return problem;
+        }
+
+        string name = UserPresets.NormalizeName(raw);
+        foreach (WidgetPreset preset in _userPresets)
+        {
+            if (string.Equals(UserPresets.NormalizeName(preset.Name), name, StringComparison.OrdinalIgnoreCase))
+            {
+                return $"You already have a preset called \"{preset.Name}\". Choose another name.";
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>A free "My look N" suggestion, so the common case is one click.</summary>
+    private string SuggestPresetName()
+    {
+        for (int n = 1; n <= 99; n++)
+        {
+            string candidate = $"My look {n}";
+            if (ValidateNewPresetName(candidate) is null)
+            {
+                return candidate;
+            }
+        }
+
+        return "My look";
     }
 
     private void WireForPresetLabel(Control input)
@@ -919,6 +1244,76 @@ internal sealed class SettingsForm : Form
         => _barThickness.Value = Numeric.Clamp(px, 1, MonitorConfig.MaxBarThicknessPx);
 
     internal void FillForTest(MonitorConfig config) => FillControls(config);
+
+    /// <summary>The saved-look entries the picker is showing, in order.</summary>
+    internal IReadOnlyList<string> SavedPresetNamesForTest
+        => [.. _userBox.Items.Cast<string>()];
+
+    internal string? SelectedSavedPresetForTest => _userBox.SelectedItem as string;
+
+    internal bool CanDeleteSavedPresetForTest => _deletePresetButton.Enabled;
+
+    /// <summary>
+    /// Chooses a saved look the way the user would, through the picker, so the wiring is
+    /// what a test exercises rather than the apply method behind it.
+    /// </summary>
+    internal void SelectSavedPresetForTest(string name)
+    {
+        int index = _userBox.Items.IndexOf(name);
+        if (index < 0)
+        {
+            throw new ArgumentException($"no saved preset named {name}", nameof(name));
+        }
+
+        _userBox.SelectedIndex = index;
+    }
+
+    /// <summary>
+    /// The body of the Save current button without its name prompt, so a test can supply the
+    /// name. Kept as the same code path: the prompt only decides the string.
+    /// </summary>
+    internal bool SavePresetForTest(string name)
+    {
+        if (_presetPath is null || ValidateNewPresetName(name) is not null)
+        {
+            return false;
+        }
+
+        WidgetPreset preset = UserPreset.FromConfig(UserPresets.NormalizeName(name), BuildResult()).ToPreset();
+        bool saved = UserPresets.TrySave(preset, _presetPath, out IReadOnlyList<WidgetPreset> stored, out string? error);
+
+        _userPresets = saved
+            ? stored
+            : [.. _userPresets.Where(p => !string.Equals(p.Name, preset.Name, StringComparison.OrdinalIgnoreCase)), preset];
+
+        FillUserPresetBox(_userBox, preset.Name);
+        SyncPresetLabel();
+        _presetNote.Text = saved ? preset.Name : error ?? string.Empty;
+        return saved;
+    }
+
+    /// <summary>Removes a saved look without the confirmation dialog, for tests.</summary>
+    internal void DeletePresetForTest(string name)
+    {
+        if (_presetPath is null)
+        {
+            return;
+        }
+
+        string? neighbour = _userPresets
+            .Select(p => p.Name)
+            .FirstOrDefault(n => !string.Equals(n, name, StringComparison.OrdinalIgnoreCase));
+
+        _userPresets = _userPresets
+            .Where(p => !string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase))
+            .ToList();
+
+        UserPresets.TryWrite(_presetPath, _userPresets, out _);
+        FillUserPresetBox(_userBox, neighbour);
+        SyncPresetLabel();
+    }
+
+    internal string? NoteForTest => _presetNote.Text;
 
     protected override void Dispose(bool disposing)
     {

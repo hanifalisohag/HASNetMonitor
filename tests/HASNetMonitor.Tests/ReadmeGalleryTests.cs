@@ -19,19 +19,29 @@ public class ReadmeGalleryTests
     public void TheReadmePresetCountMatchesTheTable()
     {
         string readme = Readme();
-        string[] words = ["Twenty-four", "Twenty-five", "Twenty-three"];
 
-        string stated = WidgetPresets.All.Count == 24 ? "Twenty-four"
-            : WidgetPresets.All.Count == 25 ? "Twenty-five"
-            : WidgetPresets.All.Count == 23 ? "Twenty-three"
-            : throw new Xunit.Sdk.XunitException(
-                $"the README spells out the count in words; add {WidgetPresets.All.Count} to this test and the prose");
+        // Only the hundreds the gallery has ever been near, so a typo in the table (or a
+        // dropped entry) fails here instead of silently passing a word nothing matches.
+        var words = new Dictionary<int, string>
+        {
+            [23] = "Twenty-three",
+            [24] = "Twenty-four",
+            [25] = "Twenty-five",
+            [26] = "Twenty-six",
+        };
+
+        int count = WidgetPresets.All.Count;
+        if (!words.TryGetValue(count, out string? stated))
+        {
+            throw new Xunit.Sdk.XunitException(
+                $"the README spells out the count in words; add {count} to this test and the prose");
+        }
 
         Assert.Contains(stated, readme, StringComparison.Ordinal);
         Assert.Contains("Settings → Presets", readme, StringComparison.Ordinal);
 
-        // The other two numbers must not also appear, or the sentence is ambiguous.
-        foreach (string other in words.Where(w => !string.Equals(w, stated, StringComparison.Ordinal)))
+        // No other number may also appear, or the sentence is ambiguous.
+        foreach (string other in words.Values.Where(w => !string.Equals(w, stated, StringComparison.Ordinal)))
         {
             Assert.DoesNotContain(other, readme, StringComparison.Ordinal);
         }
