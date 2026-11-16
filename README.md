@@ -11,7 +11,7 @@ shell hides or buries it.
 - Settings apply to the live widget as you change them
 - Optional start with Windows (per-user `Run` key, no admin rights needed)
 - Config is a plain JSON file you can edit by hand, saved automatically
-- **About** box with the version, author and contact address
+- **About** box with the version, author, contact address and licence
 
 ## Designs
 ![Design 1](imgs/img_1.png)
@@ -391,7 +391,7 @@ font size, text), **Position** (offset from tray, nudges with arrow buttons, res
 | Position | Nudge left/right 4 px, up/down 2 px, reset |
 | Reset bar scaling | Resets the auto-scaler and the smoothed bar values |
 | Start with Windows | Toggles the `Run` entry |
-| About… | App name, version, author and contact |
+| About… | App name, version, author, contact and licence |
 | Exit | Quits |
 
 ## Version and identity
@@ -405,6 +405,26 @@ file on disk cannot disagree. To ship a new version, change `<Version>` and rebu
 The product is **HAS NetMonitor**; the file is `HASNetMonitor.exe`, the project and
 solution are `HASNetMonitor.csproj` / `HASNetMonitor.slnx`, the C# root namespace is
 `HASNetMonitor`, and the config lives in `%APPDATA%\HASNetMonitor`.
+
+## License
+
+HAS NetMonitor is released under the MIT License **with an attribution requirement**:
+every copy, modification or redistribution must credit the author, **Md Hanif Ali
+Sohag**, by name. The full terms are in `LICENSE` at the repository root, which is the
+one source of the wording:
+
+- `LICENSE` is embedded in the exe as the resource `HASNetMonitor.LICENSE`
+  (`Core/LicenseInfo.cs` reads it), so the About box shows the same text an installed
+  copy ships with, whichever folder the exe runs from.
+- The About box shows `License: MIT License - Must credit Md Hanif Ali Sohag as the
+  original author` with a **View full license** link.
+- Setup shows the same `LICENSE` on its licence page, and names the author as the
+  publisher in Apps & features.
+- The exe's file properties carry `<Copyright>Copyright (c) 2026 Md Hanif Ali Sohag`
+  and `MIT` as the licence expression.
+
+Changing the licence means editing `LICENSE` alone: the embedded resource, the About
+box, the installer page and these tests all read from it.
 
 Upgrading from a build under the previous name:
 
@@ -426,6 +446,7 @@ Core/                      config, styles, fonts, geometry, traffic sampling
   Numeric.cs, Elapsed.cs   Math.Clamp / IsFinite / Stopwatch helpers, both targets
   IsExternalInit.cs        net48 polyfill for `init` accessors
   AppInfo.cs               name, version, author, contact: the About box's only source
+  LicenseInfo.cs           reads the embedded LICENSE for the About box
 Interop/                   Win32 declarations
 Rendering/                 layout and the widget renderer
 UI/                        layered window, taskbar widget, settings and About dialogs, host

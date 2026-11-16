@@ -16,6 +16,25 @@ internal static class AppInfo
 
     public const string ContactEmail = "hanifalisohag@gmail.com";
 
+    /// <summary>
+    /// The licence the product ships under. The full text is in LICENSE at the
+    /// repository root and is shown in the About box and the installer's licence page,
+    /// so this constant, the file and the UI cannot drift apart.
+    /// </summary>
+    public const string LicenseName = "MIT License";
+
+    /// <summary>
+    /// What a redistribution must keep, in the words the About box and the installer
+    /// both show. The attribution clause is the point of the licence choice: credit to
+    /// the author has to travel with every copy.
+    /// </summary>
+    public const string LicenseCredit =
+        "Must credit Md Hanif Ali Sohag as the original author";
+
+    /// <summary>One-line licence summary, as the About box and installer show it.</summary>
+    public static string LicenseSummary => $"{LicenseName} - {LicenseCredit}";
+
+
     /// <summary>The running version, e.g. <c>1.0.0</c>, read from the assembly.</summary>
     public static string Version { get; } = ReadVersion(typeof(AppInfo).Assembly);
 

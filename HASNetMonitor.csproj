@@ -20,6 +20,10 @@
     <Product>HAS NetMonitor</Product>
     <Authors>Md Hanif Ali Sohag</Authors>
     <Company>Md Hanif Ali Sohag</Company>
+    <!-- Credit in the licence itself and in the exe's file properties: the product
+         may be redistributed only with attribution to the author. -->
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <Copyright>Copyright (c) 2026 Md Hanif Ali Sohag</Copyright>
     <!-- Shown as "Description" in Explorer's file properties. -->
     <AssemblyTitle>HAS NetMonitor</AssemblyTitle>
     <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
@@ -46,6 +50,13 @@
     <GenerateSupportedRuntime>false</GenerateSupportedRuntime>
     <SkipCopyAppConfigToOutput>true</SkipCopyAppConfigToOutput>
   </PropertyGroup>
+
+  <ItemGroup>
+    <!-- The licence text ships inside the exe: the About box shows it and the installer
+         shows the same wording, so there is no second copy to keep in step. Not a
+         Content file, so publishing stays a single exe with no LICENSE beside it. -->
+    <EmbeddedResource Include="LICENSE" LogicalName="HASNetMonitor.LICENSE" />
+  </ItemGroup>
 
   <ItemGroup>
     <!-- Also embedded as a resource so the settings dialog, the tray icon and the

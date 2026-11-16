@@ -75,9 +75,29 @@ internal sealed class AboutForm : Form
             Margin = new Padding(0, 0, 0, 12),
         };
 
+        // The licence and its attribution requirement, on its own labelled line so the
+        // credit is visible without opening anything else.
+        var license = new Label
+        {
+            Text = $"License: {AppInfo.LicenseSummary}",
+            ForeColor = Color.FromArgb(90, 90, 90),
+            AutoSize = true,
+            Margin = new Padding(0, 0, 0, 4),
+        };
+
+        var licenseLink = new LinkLabel
+        {
+            Text = "View full license",
+            AutoSize = true,
+            LinkColor = Color.FromArgb(0, 90, 158),
+            ActiveLinkColor = Color.FromArgb(0, 60, 110),
+            Margin = new Padding(0, 0, 0, 12),
+        };
+
         // The whole "Contact: address" line is the link, so the label reads naturally
         // while a click opens a mail draft.
         contact.LinkClicked += (_, _) => WriteToAuthor();
+        licenseLink.LinkClicked += (_, _) => ShowLicense(this);
 
         var ok = new Button
         {
@@ -91,7 +111,7 @@ internal sealed class AboutForm : Form
         var details = new TableLayoutPanel
         {
             ColumnCount = 1,
-            RowCount = 4,
+            RowCount = 6,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Margin = new Padding(14, 0, 0, 0),
@@ -100,6 +120,8 @@ internal sealed class AboutForm : Form
         details.Controls.Add(version, 0, 1);
         details.Controls.Add(author, 0, 2);
         details.Controls.Add(contact, 0, 3);
+        details.Controls.Add(license, 0, 4);
+        details.Controls.Add(licenseLink, 0, 5);
 
         var header = new FlowLayoutPanel
         {
@@ -171,6 +193,73 @@ internal sealed class AboutForm : Form
                 Collect(child, into);
             }
         }
+    }
+
+    /// <summary>
+    /// Shows the full licence text, embedded in the assembly, in a read-only scroll box.
+    /// A missing text falls back to the licence summary rather than an empty dialog.
+    /// </summary>
+    private static void ShowLicense(IWin32Window owner)
+    {
+        string text = LicenseInfo.Text;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            text = AppInfo.LicenseSummary;
+        }
+
+        using var viewer = new Form
+        {
+            Text = $"{AppInfo.LicenseName} - {AppInfo.Name}",
+            FormBorderStyle = FormBorderStyle.FixedDialog,
+            StartPosition = FormStartPosition.CenterParent,
+            MaximizeBox = false,
+            MinimizeBox = false,
+            ShowInTaskbar = false,
+            ClientSize = new Size(560, 420),
+            Padding = new Padding(12),
+            Font = new Font("Segoe UI", 9f),
+            BackColor = Color.White,
+        };
+
+        var box = new TextBox
+        {
+            Text = text,
+            Multiline = true,
+            ReadOnly = true,
+            ScrollBars = ScrollBars.Vertical,
+            WordWrap = true,
+            Dock = DockStyle.Fill,
+            BackColor = Color.White,
+            BorderStyle = BorderStyle.FixedSingle,
+            AccessibleName = "License text",
+        };
+
+        var close = new Button
+        {
+            Text = "Close",
+            DialogResult = DialogResult.OK,
+            AutoSize = true,
+            MinimumSize = new Size(88, 28),
+            Anchor = AnchorStyles.Right,
+        };
+
+        var buttons = new FlowLayoutPanel
+        {
+            FlowDirection = FlowDirection.RightToLeft,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            Dock = DockStyle.Bottom,
+            Margin = new Padding(0),
+            Padding = new Padding(0, 8, 0, 0),
+        };
+        buttons.Controls.Add(close);
+
+        viewer.Controls.Add(box);
+        viewer.Controls.Add(buttons);
+        viewer.AcceptButton = close;
+        viewer.CancelButton = close;
+
+        viewer.ShowDialog(owner);
     }
 
     /// <summary>Opens a mail draft to the author. A missing mail client is not an error.</summary>
