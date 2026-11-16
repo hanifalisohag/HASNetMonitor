@@ -353,11 +353,33 @@ public class ReleaseWorkflowTests
     [Fact]
     public void TheWorkflowIsAllowedToWriteARelease()
     {
-        // contents: read makes every release call fail with a permission error.
+        // A release writes to the repository, so the job must be granted exactly that.
+        // The block is read as a whole: a Contains check would pass even with an extra
+        // entry alongside it, and the granted permissions are the narrowest set possible.
         string workflow = WorkflowFile(out _);
+        string[] lines = workflow.Split('\n').Select(line => line.TrimEnd('\r')).ToArray();
 
-        Assert.Contains("contents: write", workflow, StringComparison.Ordinal);
-        Assert.DoesNotContain("contents: read", workflow, StringComparison.Ordinal);
+        int at = Array.FindIndex(lines, line => line.Trim() == "permissions:");
+        Assert.True(at >= 0, "the workflow declares no permissions block");
+
+        var granted = new List<string>();
+        for (int i = at + 1; i < lines.Length; i++)
+        {
+            if (lines[i].Trim().Length == 0)
+            {
+                continue;
+            }
+
+            // The block ends at the first line that is not indented beneath it.
+            if (!lines[i].StartsWith("  ", StringComparison.Ordinal))
+            {
+                break;
+            }
+
+            granted.Add(lines[i].Trim());
+        }
+
+        Assert.Equal(new[] { "contents: write" }, granted);
     }
 
     [Fact]
