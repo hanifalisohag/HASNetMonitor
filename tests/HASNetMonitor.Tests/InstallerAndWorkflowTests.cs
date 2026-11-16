@@ -306,3 +306,94 @@ public class InstallerAndWorkflowTests
         return count;
     }
 }
+
+/// <summary>
+/// A green workflow is not the same as a download users can find. A build artifact is
+/// reachable only from the run that produced it, expires, and is invisible to anyone
+/// signed out, so shipping needs a release with the Setup attached. These assertions
+/// are what keep the publishing step from quietly disappearing again.
+/// </summary>
+public class ReleaseWorkflowTests
+{
+    private static string WorkflowFile(out string fileName)
+    {
+        string folder = Path.Combine(SourceText.Root(), ".github", "workflows");
+        Assert.True(Directory.Exists(folder), $"{folder} does not exist");
+
+        var matches = Directory.GetFiles(folder)
+            .Where(file => File.ReadAllText(file).Contains("HASNetMonitor.iss", StringComparison.Ordinal))
+            .OrderBy(file => file, StringComparer.Ordinal)
+            .ToList();
+
+        Assert.True(matches.Count == 1, $"expected one workflow, found {matches.Count}");
+        fileName = Path.GetFileName(matches[0]);
+        return File.ReadAllText(matches[0]);
+    }
+
+    private static string ProjectVersion()
+    {
+        XDocument project = XDocument.Load(Path.Combine(SourceText.Root(), "HASNetMonitor.csproj"));
+        string? version = project.Descendants("Version").FirstOrDefault()?.Value.Trim();
+        Assert.False(string.IsNullOrEmpty(version), "HASNetMonitor.csproj has no <Version>");
+        return version!;
+    }
+
+    [Fact]
+    public void TheWorkflowCreatesARelease()
+    {
+        // Without this the run only stores an artifact, which no user can download.
+        string workflow = WorkflowFile(out string fileName);
+
+        Assert.Contains("gh release create", workflow, StringComparison.Ordinal);
+        Assert.True(
+            workflow.Contains("gh release upload", StringComparison.Ordinal),
+            $"{fileName} never attaches the Setup to the release");
+    }
+
+    [Fact]
+    public void TheWorkflowIsAllowedToWriteARelease()
+    {
+        // contents: read makes every release call fail with a permission error.
+        string workflow = WorkflowFile(out _);
+
+        Assert.Contains("contents: write", workflow, StringComparison.Ordinal);
+        Assert.DoesNotContain("contents: read", workflow, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TheReleaseCarriesTheSameExeTheScriptNames()
+    {
+        // The tag, the asset and OutputBaseFilename must agree, or the release is empty.
+        string workflow = WorkflowFile(out _);
+        string version = ProjectVersion();
+
+        Assert.Contains("gh release create $tag $setup", workflow, StringComparison.Ordinal);
+        Assert.Contains("HASNetMonitor-Setup-$env:APP_VERSION.exe", workflow, StringComparison.Ordinal);
+
+        // Re-running without a version bump hits an existing tag; that must not be fatal.
+        Assert.Contains("--clobber", workflow, StringComparison.Ordinal);
+
+        // The version is still read, never typed into the workflow.
+        Assert.DoesNotContain($"APP_VERSION={version}", workflow, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TheReleaseIsCheckedRatherThanAssumed()
+    {
+        // gh exits 0 for a create that attached nothing, so the asset is read back.
+        string workflow = WorkflowFile(out _);
+
+        Assert.Contains("gh release view $tag --json assets", workflow, StringComparison.Ordinal);
+        Assert.Contains("does not carry the Setup exe", workflow, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void TheReadmeLinksToTheDownload()
+    {
+        // A release nobody links to is still not a download for a visitor.
+        string readme = SourceText.Read(".", "README.md");
+
+        Assert.Contains("https://github.com/hanifalisohag/HASNetMonitor/releases/latest", readme, StringComparison.Ordinal);
+        Assert.Contains("## Download", readme, StringComparison.Ordinal);
+    }
+}

@@ -7,8 +7,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+# A release has to be created and an asset attached to it, which is a write.
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   installer:
@@ -87,3 +88,57 @@ jobs:
           name: HASNetMonitor-Setup-${{ env.APP_VERSION }}
           path: installer/Output/HASNetMonitor-Setup-*.exe
           if-no-files-found: error
+
+      # The artifact above is only reachable from this run while signed in and expires.
+      # A release is what gives users a permanent download link on the repository page.
+      - name: Publish the Setup as a GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = "v$env:APP_VERSION"
+          $setup = "installer\Output\HASNetMonitor-Setup-$env:APP_VERSION.exe"
+          if (-not (Test-Path $setup)) { throw "no Setup to publish: $setup" }
+
+          $notes = @"
+          HAS NetMonitor $env:APP_VERSION - single-file Setup for Windows 10 1903+ and Windows 11.
+
+          Download HASNetMonitor-Setup-$env:APP_VERSION.exe and run it. Setup is per-user, so it
+          needs no admin rights, and there is no runtime to download: the app targets the .NET
+          Framework 4.8 that Windows already has.
+
+          Your settings live in %APPDATA%\HASNetMonitor\config.json and are kept on reinstall,
+          upgrade and uninstall unless you tick the box that asks to delete them.
+
+          MIT License - Must credit Md Hanif Ali Sohag as the original author. Full text in LICENSE.
+          "@
+          $notesFile = Join-Path $env:RUNNER_TEMP 'release-notes.md'
+          Set-Content -Path $notesFile -Value $notes -Encoding utf8
+
+          # Every push to main ships the version in the csproj, so a second push without a
+          # version bump lands on the same tag. Replacing the asset keeps that a no-op
+          # failure mode instead of a red build a human has to clear by hand.
+          gh release view $tag --json tagName *> $null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "release $tag exists; replacing its asset"
+            gh release upload $tag $setup --clobber
+            if ($LASTEXITCODE -ne 0) { throw "gh release upload failed with exit code $LASTEXITCODE" }
+            gh release edit $tag --title "HAS NetMonitor $env:APP_VERSION" --notes-file $notesFile
+            if ($LASTEXITCODE -ne 0) { throw "gh release edit failed with exit code $LASTEXITCODE" }
+          }
+          else {
+            Write-Host "creating release $tag"
+            gh release create $tag $setup `
+              --target "$env:GITHUB_SHA" `
+              --title "HAS NetMonitor $env:APP_VERSION" `
+              --notes-file $notesFile
+            if ($LASTEXITCODE -ne 0) { throw "gh release create failed with exit code $LASTEXITCODE" }
+          }
+
+          # Prove the asset is attached rather than trusting the exit code.
+          $assets = gh release view $tag --json assets --jq '.assets[].name'
+          if ($LASTEXITCODE -ne 0) { throw "could not read back release $tag" }
+          if ($assets -notcontains "HASNetMonitor-Setup-$env:APP_VERSION.exe") {
+            throw "release $tag does not carry the Setup exe; got: $assets"
+          }
+          Write-Host "release $tag carries $(Split-Path -Leaf $setup)"

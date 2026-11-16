@@ -24,6 +24,14 @@ shell hides or buries it.
 
 ---
 
+## Download
+
+Get the Setup exe from the [latest release](https://github.com/hanifalisohag/HASNetMonitor/releases/latest):
+
+`HASNetMonitor-Setup-<version>.exe` — one file, per-user, no admin rights, no runtime to
+download. Every push to `main` builds it and publishes it, so the newest release is always
+the current code. All releases are listed on the [releases page](https://github.com/hanifalisohag/HASNetMonitor/releases).
+
 ## Requirements
 
 | | |
