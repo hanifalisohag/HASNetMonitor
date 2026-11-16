@@ -4,6 +4,9 @@
 ;   dotnet publish HASNetMonitor.csproj -c Release -f net48 -o publish
 ;   "%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" installer\HASNetMonitor.iss
 ; which writes installer\Output\HASNetMonitor-Setup-<version>.exe
+; The second line is cmd.exe syntax; in PowerShell it is
+;   & "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" installer\HASNetMonitor.iss
+; because %VAR% is not expanded there and a quoted path needs the & operator.
 ;
 ; The publish folder is the only input: the exe inside it is the whole app. Override
 ; the defaults with /DAppVersion=<x.y.z> /DPublishDir=<dir> /DOutputDir=<dir>; the
@@ -24,7 +27,7 @@
 #define ConfigFolder "HASNetMonitor"
 
 #ifndef AppVersion
-  #define AppVersion "1.1.0"
+  #define AppVersion "1.2.0"
 #endif
 #ifndef PublishDir
   #define PublishDir "..\publish"

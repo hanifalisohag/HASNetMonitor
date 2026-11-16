@@ -129,23 +129,23 @@ internal static class WidgetPresets
     /// </summary>
     public static IReadOnlyList<WidgetPreset> All { get; } =
     [
-        // The start-up look. This must reproduce new MonitorConfig() exactly - a fresh
-        // install has no config file, so the constructor is what the user first sees - and
-        // it is first so the picker can name it on first run instead of saying Custom.
+        // The start-up look: this must reproduce MonitorConfig.CreateInitial() exactly, since
+        // that is what a fresh install writes. It is first so the picker names it on load
+        // instead of opening blank, and it is the design the gallery calls "HAS Preset".
         new(
-            "HAS Preset", "The look a new install starts with: green and red bars, plain figures.",
-            "#2ECC71","#E74C3C", WidgetStyles.Bars, ArrowStyles.Classic, StackOrder.DownloadFirst,
-            3, 2, 9, 150,
-            downloadTextMode: TextColorModes.Auto, uploadTextMode: TextColorModes.Auto),
-
-        // A real config someone actually ran, kept in the gallery as its own entry.
-        new(
-            "Harbour", "Vertical segments with both figures tinted by their bar.",
+            "HAS Preset", "The look with vertical segments, both figures tinted by their bar.",
             "#2ECC71","#E6643C", WidgetStyles.SidebarSegments, ArrowStyles.Small, StackOrder.UploadFirst,
             4, 0, 10.5, 150, bold: true, roundedBars: true,
             backdropOpacity: 255,
             downloadTextMode: TextColorModes.Bar, downloadTextColor: "#2ECC71",
             uploadTextMode: TextColorModes.Bar, uploadTextColor: "#E6643C"),
+
+        // The plain green/red bars the renderer and the older tests use as their baseline.
+        new(
+            "Harbour", "Plain green and red bars with untinted figures.",
+            "#2ECC71","#E74C3C", WidgetStyles.Bars, ArrowStyles.Classic, StackOrder.DownloadFirst,
+            3, 2, 9, 150,
+            downloadTextMode: TextColorModes.Auto, uploadTextMode: TextColorModes.Auto),
 
         new(
             "Cobalt", "Cool blue against warm amber, in chunky separated blocks.",

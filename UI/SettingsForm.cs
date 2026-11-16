@@ -131,7 +131,9 @@ internal sealed class SettingsForm : Form
 
         // The dialog is taller than a 768 px netbook screen once the preset row is in.
         // Capping the height and scrolling keeps OK reachable: a fixed dialog that cannot
-        // shrink would hide its own buttons on such a screen.
+        // shrink would hide its own buttons on such a screen. The groups are laid out in two
+        // short columns so the whole form, Reset nudges included, fits above the footer
+        // without needing that scroll.
         AutoScroll = true;
         MaximumSize = new Size(1100, 720);
 
@@ -342,30 +344,35 @@ internal sealed class SettingsForm : Form
         var columns = new TableLayoutPanel
         {
             ColumnCount = 2,
-            RowCount = 3,
+            RowCount = 2,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Dock = DockStyle.Fill,
         };
         columns.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         columns.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        for (int row = 0; row < 3; row++)
+        for (int row = 0; row < 2; row++)
         {
             columns.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         }
 
+        // Position shares the top row with Presets, and Look sits beside Colours, so the
+        // widest row is about 950 px and the tallest column about 425 px. Stacking Position
+        // in a third row made the form taller than the height it can show, which cut off the
+        // Reset nudges button along with the footer.
         columns.Controls.Add(presets, 0, 0);
-        columns.SetColumnSpan(presets, 2);
+        columns.Controls.Add(position, 1, 0);
         columns.Controls.Add(look, 0, 1);
         columns.Controls.Add(colours, 1, 1);
-        columns.Controls.Add(position, 0, 2);
 
         var buttons = new FlowLayoutPanel
         {
             FlowDirection = FlowDirection.RightToLeft,
             AutoSize = true,
             Dock = DockStyle.Fill,
-            Margin = new Padding(0, 12, 0, 0),
+            // A bottom margin as well as the top one: hugging the table's edge put the last
+            // pixels of OK outside the visible client area.
+            Margin = new Padding(0, 12, 0, 8),
         };
 
         var ok = new Button { Text = "OK", DialogResult = DialogResult.OK, AutoSize = true, MinimumSize = new Size(80, 26) };
@@ -373,7 +380,10 @@ internal sealed class SettingsForm : Form
         buttons.Controls.Add(ok);
         buttons.Controls.Add(cancel);
 
-        var root = new TableLayoutPanel { ColumnCount = 1, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Dock = DockStyle.Fill };
+        // The root sizes the form (Dock=None) rather than filling it: docked inside a
+        // form that is capped by MaximumSize, the table's client area came out a few pixels
+        // narrower than its own children, which pushed OK past the visible edge.
+        var root = new TableLayoutPanel { ColumnCount = 1, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
         root.Controls.Add(columns);
         root.Controls.Add(buttons);
         Controls.Add(root);

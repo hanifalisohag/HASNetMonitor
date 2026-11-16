@@ -264,13 +264,15 @@ public class WidgetPresetsTests
     }
 
     /// <summary>
-    /// The first entry is the look a fresh install starts with, so a new config must name
-    /// it rather than showing "Custom" on first run.
+    /// The first entry is the look a fresh install starts with, so the config a new install
+    /// actually writes must name it rather than opening the picker blank. That config is
+    /// <see cref="MonitorConfig.CreateInitial"/>, not the classic <c>new MonitorConfig()</c>
+    /// baseline, which is deliberately a different look.
     /// </summary>
     [Fact]
     public void AFreshInstallAlreadyMatchesTheFirstPreset()
     {
-        MonitorConfig fresh = new MonitorConfig().Normalize();
+        MonitorConfig fresh = MonitorConfig.CreateInitial();
         WidgetPreset? match = WidgetPresets.FindByAppearance(fresh);
         Assert.NotNull(match);
         Assert.Equal(WidgetPresets.All[0].Name, match!.Name);

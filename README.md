@@ -231,6 +231,48 @@ What the `net48` build does differently, so it stays small and dependency-free:
 Both targets compile from the same sources with `#if NETFRAMEWORK` only inside those
 compatibility files, and the whole test suite runs on both.
 
+## Build the installer locally
+
+`installer\HASNetMonitor.iss` is an Inno Setup 6 script that packs the `net48` publish
+output, so publish first and then compile it (both lines run in PowerShell):
+
+```powershell
+# 1. the build the installer ships
+dotnet publish HASNetMonitor.csproj -c Release -f net48 -o publish
+
+# 2. compile the script
+& "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" installer\HASNetMonitor.iss
+```
+
+That writes `installer\Output\HASNetMonitor-Setup-1.1.0.exe` — the same per-user,
+no-admin, no-runtime-download installer the releases carry.
+
+The compile line above is PowerShell syntax: `$env:LOCALAPPDATA` does not exist in
+`cmd.exe`, which spells the same folder `%LOCALAPPDATA%`, and a command that begins with
+a quoted path needs the `&` call operator in PowerShell or it parses as a string followed
+by stray arguments. Run the whole block in one shell and neither problem arises.
+
+Needs Inno Setup 6 (`winget install JRSoftware.InnoSetup`); it installs `ISCC.exe` under
+`%LOCALAPPDATA%\Programs\Inno Setup 6`, which is not on `PATH`.
+
+What the script takes, and what to override:
+
+| Input | Default | Override |
+|---|---|---|
+| published exe | `..\publish` beside the script | `/DPublishDir=<dir>` |
+| version | the `#define` fallback, kept equal to `<Version>` | `/DAppVersion=1.2.0` |
+| output | `installer\Output` | `/DOutputDir=<dir>` |
+
+The publish folder is the only input the script has: a stale `publish\` produces a Setup
+exe carrying the old `HASNetMonitor.exe`, which installs and runs without complaint, so
+re-publish after any code change. `installer\config.default.json` and the repository
+`LICENSE` are packed from beside the script, not from the publish folder. A manual
+compile uses the version baked into the script; only the workflow passes the one it
+reads from the project file, so pass `/DAppVersion=` too if you bumped `<Version>`.
+
+`.github/workflows/installer.yml` runs these same two steps on every push to `main` and
+publishes the result as the release asset.
+
 ## Diagnostics
 
 ```bash

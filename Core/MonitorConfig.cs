@@ -155,11 +155,11 @@ internal sealed class MonitorConfig
     public static MonitorConfig CreateInitial() => new()
     {
         DownloadColorHex = "#2ECC71",
-        UploadColorHex = "#E74C3C",
+        UploadColorHex = "#E6643C",
         DownloadTextColorMode = TextColorModes.Bar,
-        UploadTextColorMode = TextColorModes.Custom,
+        UploadTextColorMode = TextColorModes.Bar,
         DownloadTextColorHex = "#2ECC71",
-        UploadTextColorHex = "#E97D5F",
+        UploadTextColorHex = "#E6643C",
         ArrowStyle = ArrowStyles.Small,
         RefreshIntervalMs = 1000,
         OffsetFromTrayPx = 6,
