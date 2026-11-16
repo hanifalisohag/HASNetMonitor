@@ -27,6 +27,10 @@ internal sealed class MonitorHost : ApplicationContext
         _config = MonitorConfig.Load(_configPath, MonitorConfig.LegacyConfigPath);
         if (firstRun)
         {
+            // Load already yields the initial preset when nothing exists (or the user's
+            // old colours when a legacy config was found), so this just puts that config
+            // on disk: a real file the user can edit straight away. Copying the preset
+            // over it here would throw away migrated legacy settings.
             _config.TrySave(_configPath);
         }
 

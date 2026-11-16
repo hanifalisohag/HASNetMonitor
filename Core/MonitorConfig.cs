@@ -144,6 +144,48 @@ internal sealed class MonitorConfig
         "HASNetMonitor",
         "config.json");
 
+    /// <summary>
+    /// The settings a brand-new installation starts with, written to
+    /// <see cref="DefaultConfigPath"/> on first run so the user has a working, good-looking
+    /// configuration to adjust instead of an empty one. This is deliberately not the
+    /// constructor default: <c>new MonitorConfig()</c> stays the plain classic look the
+    /// renderer and the tests treat as the baseline, and only the first-run file gets
+    /// this look.
+    /// </summary>
+    public static MonitorConfig CreateInitial() => new()
+    {
+        DownloadColorHex = "#2ECC71",
+        UploadColorHex = "#E74C3C",
+        DownloadTextColorMode = TextColorModes.Bar,
+        UploadTextColorMode = TextColorModes.Custom,
+        DownloadTextColorHex = "#2ECC71",
+        UploadTextColorHex = "#E97D5F",
+        ArrowStyle = ArrowStyles.Small,
+        RefreshIntervalMs = 1000,
+        OffsetFromTrayPx = 6,
+        NudgeXPx = 0,
+        NudgeYPx = 0,
+        AutoScale = true,
+        MaxScaleMbps = 100,
+        ShowText = true,
+        ShowBackdrop = false,
+        BackdropOpacity = 255,
+        BarThicknessPx = 4,
+        SegmentGapPx = 0,
+        FontSizePt = 10.5,
+        Style = WidgetStyles.SidebarSegments,
+        SortOrder = StackOrder.UploadFirst,
+        FontFamily = FontCatalog.Automatic,
+        FontBold = true,
+        FontItalic = false,
+        RoundedBars = true,
+        SharedScale = true,
+        AccentGlow = false,
+        ArrowSizePercent = 150,
+        CrispText = false,
+        StartWithWindows = true,
+    };
+
     public static string LegacyConfigPath => Path.Combine(AppContext.BaseDirectory, "config.json");
 
     private static readonly Color DefaultDownload = Color.FromArgb(0x2E, 0xCC, 0x71);
@@ -326,10 +368,12 @@ internal sealed class MonitorConfig
     }
 
     /// <summary>
-    /// Reads the config. A missing or broken file is not an error the user should
-    /// have to see: it yields defaults. When no config exists in the primary
-    /// location the legacy beside-the-exe file is tried so existing installs keep
-    /// their colours.
+    /// Reads the config. A missing file is not an error the user should have to see: it
+    /// yields <see cref="CreateInitial"/>, the settings a fresh install starts with, so
+    /// the app has a sensible look even before anything is saved. When no config exists
+    /// in the primary location the legacy beside-the-exe file is tried so existing
+    /// installs keep their colours. A file that exists but cannot be parsed is repaired
+    /// by <see cref="FromJson"/> instead, which falls back to the classic look.
     /// </summary>
     public static MonitorConfig Load(string path, string? legacyFallbackPath = null)
     {
@@ -350,7 +394,7 @@ internal sealed class MonitorConfig
             }
         }
 
-        return new MonitorConfig().Normalize();
+        return CreateInitial().Normalize();
     }
 
     /// <summary>Persists the config, creating the directory if needed.</summary>

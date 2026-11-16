@@ -217,11 +217,19 @@ Settings are stored per user at:
 ```
 
 There is nothing to open and nothing to save by hand: the file is written whenever a
-setting changes, by the tray switches as well as by the settings dialog, and it is
-created with defaults on first run. A `config.json` next to the exe is read as a
-fallback and then saved to the per-user path. The file is plain JSON, tolerates comments and trailing commas, and is
+setting changes, by the tray switches as well as by the settings dialog. Setup seeds it
+for a new user from `installer\config.default.json`, and if it is absent when the app
+starts the app writes it itself — both place the same starting settings, which are the
+author's own working configuration rather than a bare default, so a fresh install looks
+right immediately and the user only changes what they want. An existing `config.json` is
+never overwritten by setup, a reinstall or an upgrade. A `config.json` next to the exe is
+read as a fallback and then saved to the per-user path. The file is plain JSON, tolerates comments and trailing commas, and is
 repaired on load — out-of-range values are clamped, unknown style names fall back to
 `Bars`.
+
+The `Default` column below is what a new install starts with, i.e. the values in
+`CreateInitial()` in `Core/MonitorConfig.cs`. `new MonitorConfig()` on its own keeps the
+plainer baseline the renderer uses.
 
 | Key | Default | Range / values |
 |---|---|---|
@@ -236,23 +244,23 @@ repaired on load — out-of-range values are clamped, unknown style names fall b
 | `MaxScaleMbps` | `100` | 0.01–100000 |
 | `ShowText` | `true` | `true`/`false` |
 | `ShowBackdrop` | `false` | `true`/`false` |
-| `BackdropOpacity` | `120` | 0–255 |
+| `BackdropOpacity` | `255` | 0–255 |
 | `CrispText` | `false` | `true`/`false` |
 | `ArrowSizePercent` | `150` | 50–300, arrow ink height against a digit's |
-| `ArrowStyle` | `Classic` | `Classic`, `Solid`, `Small`, `Double`, `Chevron`, `Bar`, `None` |
-| `DownloadTextColorMode` | `Auto` | `Auto`, `Bar`, `Custom` |
-| `DownloadTextColorHex` | `#FFFFFF` | `#RRGGBB`, used when the mode is `Custom` |
-| `UploadTextColorMode` | `Auto` | as above, for the upload row |
-| `UploadTextColorHex` | `#FFFFFF` | as above |
-| `BarThicknessPx` | `3` | 1–24 |
-| `SegmentGapPx` | `2` | 0–12 |
-| `FontSizePt` | `9` | 6–20 |
-| `Style` | `Bars` | see below |
-| `SortOrder` | `DownloadFirst` | `DownloadFirst`, `UploadFirst` |
+| `ArrowStyle` | `Small` | `Classic`, `Solid`, `Small`, `Double`, `Chevron`, `Bar`, `None` |
+| `DownloadTextColorMode` | `Bar` | `Auto`, `Bar`, `Custom` |
+| `DownloadTextColorHex` | `#2ECC71` | `#RRGGBB`, used when the mode is `Custom` |
+| `UploadTextColorMode` | `Custom` | as above, for the upload row |
+| `UploadTextColorHex` | `#E97D5F` | as above |
+| `BarThicknessPx` | `4` | 1–24 |
+| `SegmentGapPx` | `0` | 0–12 |
+| `FontSizePt` | `10.5` | 6–20 |
+| `Style` | `SidebarSegments` | see below |
+| `SortOrder` | `UploadFirst` | `DownloadFirst`, `UploadFirst` |
 | `FontFamily` | empty | an installed family name, or empty to match the taskbar |
-| `FontBold` | `false` | `true`/`false` |
+| `FontBold` | `true` | `true`/`false` |
 | `FontItalic` | `false` | `true`/`false` |
-| `RoundedBars` | `false` | `true`/`false` |
+| `RoundedBars` | `true` | `true`/`false` |
 | `AccentGlow` | `false` | `true`/`false` |
 | `StartWithWindows` | `true` | `true`/`false` |
 
@@ -272,7 +280,8 @@ value `HASNetMonitor`, pointing at the executable that is running. The config is
 source of truth: the key is re-applied on every start, which also repairs it after a
 Windows update removes it.
 
-To start over, exit the app and delete the config folder.
+To start over, exit the app and delete the config folder; the next start writes the
+initial preset again.
 
 ## Look
 

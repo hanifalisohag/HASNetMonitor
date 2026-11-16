@@ -35,6 +35,22 @@ internal static class SourceText
         return next < 0 ? source[start..] : source[start..next];
     }
 
+    /// <summary>
+    /// A whole Pascal routine from an .iss script, signature line to its closing "end;".
+    /// Lets a test assert what a routine does without pinning unrelated lines.
+    /// </summary>
+    public static string ExtractProcedure(string folder, string file, string signature)
+    {
+        string source = Read(folder, file);
+        int start = source.IndexOf(signature, StringComparison.Ordinal);
+        Assert.True(start >= 0, $"procedure not found in {file}: {signature}");
+
+        int end = source.IndexOf("\nend;", start, StringComparison.Ordinal);
+        Assert.True(end >= 0, $"procedure is not closed in {file}: {signature}");
+
+        return source[start..(end + "\nend;".Length)];
+    }
+
     /// <summary>The repository root, found above the test binary, so a whole tree can be scanned.</summary>
     public static string Root()
     {
