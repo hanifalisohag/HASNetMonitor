@@ -3,10 +3,14 @@
 A small always-on-top Windows widget that sits on the taskbar next to the tray and
 shows live download and upload speed as coloured bars, text, or both.
 
+![HASNetMonitor on the taskbar](imgs/hero.png)
+
 It is taskbar-owned, seats itself above the shell, and repairs its own presence if the
 shell hides or buries it.
 
-- Eight looks, two stacking orders, selectable font family/size/weight
+- Ten looks, two stacking orders, selectable font family/size/weight
+- Seven arrow styles, including a drawn bar arrow and no arrow at all
+- Bar and figure colours you pick, or figures that follow their bar
 - Position it by distance from the tray, then nudge it left/right/up/down in pixels
 - Settings apply to the live widget as you change them
 - Optional start with Windows (per-user `Run` key, no admin rights needed)
@@ -14,13 +18,28 @@ shell hides or buries it.
 - **About** box with the version, author, contact address and licence
 
 ## Designs
-![Design 1](imgs/img_1.png)
 
-![Design 2](imgs/img_2.png)
+Ten looks, each keeping the same live figures. Pick one under **Settings → Look → Style**.
 
-![Design 3](imgs/img_3.png)
+![The ten widget styles](imgs/designs.png)
 
-![Design 4](imgs/img_4.png)
+Every look adapts to the taskbar it sits on, dark or light:
+
+![Dark and light taskbars](imgs/themes.png)
+
+### Arrow styles
+
+The arrow in front of each figure is selectable, so the widget can match the rest of your
+tray or disappear into it. Chosen with **Settings → Look → Arrow type**:
+
+![Arrow styles](imgs/arrows.png)
+
+### Figure colours
+
+The figures can follow the taskbar, take their bar's colour, or use a colour you choose.
+Chosen with **Settings → Colours and behaviour → Download/Upload text**:
+
+![Figure colour modes](imgs/text-colours.png)
 
 ---
 
