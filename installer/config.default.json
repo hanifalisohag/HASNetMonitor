@@ -1,10 +1,10 @@
 {
   "DownloadColorHex": "#2ECC71",
-  "UploadColorHex": "#E74C3C",
+  "UploadColorHex": "#E6643C",
   "DownloadTextColorMode": "Bar",
-  "UploadTextColorMode": "Custom",
+  "UploadTextColorMode": "Bar",
   "DownloadTextColorHex": "#2ECC71",
-  "UploadTextColorHex": "#E97D5F",
+  "UploadTextColorHex": "#E6643C",
   "ArrowStyle": "Small",
   "RefreshIntervalMs": 1000,
   "OffsetFromTrayPx": 6,
