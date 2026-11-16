@@ -1229,14 +1229,15 @@ internal sealed class WidgetRenderer
         {
             if (isDownload)
             {
-                // Head at the bottom, stem rising from it.
+                // Head at the bottom, stem rising from it: the head's base sits on the
+                // stem and its point faces down, which is what a download arrow is.
                 graphics.FillRectangle(brush, stemLeft, top, stemWidth, stemHeight);
-                graphics.FillPolygon(brush, BarHead(left, top + stemHeight, width, headHeight));
+                graphics.FillPolygon(brush, BarHead(left, top + stemHeight, width, headHeight, pointsDown: true));
             }
             else
             {
                 // Head at the top, stem falling from it.
-                graphics.FillPolygon(brush, BarHead(left, top, width, headHeight));
+                graphics.FillPolygon(brush, BarHead(left, top, width, headHeight, pointsDown: false));
                 graphics.FillRectangle(brush, stemLeft, top + headHeight, stemWidth, stemHeight);
             }
         }
@@ -1246,12 +1247,25 @@ internal sealed class WidgetRenderer
         }
     }
 
-    private static PointF[] BarHead(float left, float top, float width, float height) =>
-    [
-        new PointF(left + (width / 2f), top),
-        new PointF(left, top + height),
-        new PointF(left + width, top + height),
-    ];
+    /// <summary>
+    /// The triangular head of a drawn arrow, spanning the full width. <paramref name="top"/>
+    /// is where the stem ends and the head begins; the point faces away from the stem, so a
+    /// download arrow points down and an upload arrow points up.
+    /// </summary>
+    private static PointF[] BarHead(float left, float top, float width, float height, bool pointsDown) =>
+        pointsDown
+            ?
+            [
+                new PointF(left, top),
+                new PointF(left + width, top),
+                new PointF(left + (width / 2f), top + height),
+            ]
+            :
+            [
+                new PointF(left + (width / 2f), top),
+                new PointF(left, top + height),
+                new PointF(left + width, top + height),
+            ];
 
     private static (int em, float ink) BoundsForArrow(Font textFont, int arrowSizePercent, Rectangle bounds)
     {
