@@ -50,6 +50,14 @@ internal sealed class SettingsForm : Form
     private readonly ComboBox _uploadTextMode;
     private readonly Button _downloadTextColorButton;
     private readonly Button _uploadTextColorButton;
+    private readonly ComboBox _presetBox;
+    private readonly Label _presetNote;
+
+    /// <summary>
+    /// Set while a preset is being pushed into the controls, so the events each setter
+    /// raises do not bounce back into the picker or re-derive the preset name mid-way.
+    /// </summary>
+    private bool _applyingPreset;
 
     public SettingsForm(MonitorConfig config)
     {
@@ -68,7 +76,7 @@ internal sealed class SettingsForm : Form
             Icon = _appIcon;
         }
 
-        FormBorderStyle = FormBorderStyle.FixedDialog;
+        FormBorderStyle = FormBorderStyle.Sizable;
         StartPosition = FormStartPosition.CenterScreen;
         MaximizeBox = false;
         MinimizeBox = false;
@@ -77,6 +85,12 @@ internal sealed class SettingsForm : Form
         AutoSizeMode = AutoSizeMode.GrowAndShrink;
         Padding = new Padding(14, 14, 14, 10);
         Font = new Font("Segoe UI", 9f);
+
+        // The dialog is taller than a 768 px netbook screen once the preset row is in.
+        // Capping the height and scrolling keeps OK reachable: a fixed dialog that cannot
+        // shrink would hide its own buttons on such a screen.
+        AutoScroll = true;
+        MaximumSize = new Size(1100, 720);
 
         _downloadColorButton = CreateColorButton("Download bar colour");
         _downloadColorButton.Click += (_, _) => PickColor(_downloadColorButton);
@@ -206,6 +220,21 @@ internal sealed class SettingsForm : Form
         _roundedBars = new CheckBox { Text = "Rounded caps", Checked = config.RoundedBars, AutoSize = true };
         _accentGlow = new CheckBox { Text = "Glow around the fill", Checked = config.AccentGlow, AutoSize = true };
 
+        _presetBox = CreatePresetBox();
+        _presetBox.SelectedIndexChanged += (_, _) => ApplySelectedPreset();
+
+        _presetNote = new Label
+        {
+            AutoSize = true,
+            MaximumSize = new Size(560, 0),
+            Margin = new Padding(0, 0, 0, 2),
+            ForeColor = SystemColors.GrayText,
+        };
+
+        var presets = CreateGroup("Presets");
+        AddRow(presets, "Look:", _presetBox);
+        AddRow(presets, string.Empty, _presetNote);
+
         var position = CreateGroup("Position");
         AddRow(position, "Offset from tray (px):", _offsetFromTray);
         AddRow(position, "Nudge left / right (px):", Combine(_nudgeX, _nudgeLeft, _nudgeRight));
@@ -242,15 +271,23 @@ internal sealed class SettingsForm : Form
         var columns = new TableLayoutPanel
         {
             ColumnCount = 2,
+            RowCount = 3,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Dock = DockStyle.Fill,
         };
         columns.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         columns.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        columns.Controls.Add(look, 0, 0);
-        columns.Controls.Add(colours, 1, 0);
-        columns.Controls.Add(position, 0, 1);
+        for (int row = 0; row < 3; row++)
+        {
+            columns.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        }
+
+        columns.Controls.Add(presets, 0, 0);
+        columns.SetColumnSpan(presets, 2);
+        columns.Controls.Add(look, 0, 1);
+        columns.Controls.Add(colours, 1, 1);
+        columns.Controls.Add(position, 0, 2);
 
         var buttons = new FlowLayoutPanel
         {
@@ -298,6 +335,159 @@ internal sealed class SettingsForm : Form
         })
         {
             WireForLive(input);
+        }
+
+        // The picker has to follow hand edits: changing one value away from a preset makes
+        // the settings custom, and leaving the old name showing would claim a look that is
+        // no longer on screen.
+        foreach (Control input in new Control[]
+        {
+            _style, _sortOrder, _fontFamily, _arrowSize, _arrowStyle, _bold, _italic, _roundedBars,
+            _accentGlow, _showBackdrop, _crispText, _barThickness, _segmentGap, _fontSize,
+            _downloadTextMode, _uploadTextMode,
+        })
+        {
+            WireForPresetLabel(input);
+        }
+
+        SyncPresetLabel();
+    }
+
+    /// <summary>
+    /// Picking a preset replaces the whole look at once and shows it in the controls, so
+    /// the user can see what they are about to get and still adjust a single value before
+    /// pressing OK. Only appearance is replaced: cadence, scale, position and the logon
+    /// entry are left exactly as the user set them.
+    /// </summary>
+    private void ApplySelectedPreset()
+    {
+        if (_applyingPreset)
+        {
+            return;
+        }
+
+        WidgetPreset? preset = WidgetPresets.Find(_presetBox.SelectedItem as string);
+        if (preset is null)
+        {
+            return;
+        }
+
+        _applyingPreset = true;
+        try
+        {
+            MonitorConfig applied = WidgetPresets.Apply(preset, BuildResult());
+            FillControls(applied);
+
+            // The coupling owns the tint controls, so it is re-applied before the note is
+            // written; a crisp preset would otherwise show the plate as off while the
+            // renderer drew it on.
+            ApplyCrispCoupling();
+            _presetNote.Text = preset.Description;
+        }
+        finally
+        {
+            _applyingPreset = false;
+        }
+
+        PublishLive();
+    }
+
+    /// <summary>
+    /// Names the preset the controls currently describe, or "Custom" once they have been
+    /// edited away from every one of them.
+    /// </summary>
+    private void SyncPresetLabel()
+    {
+        if (_applyingPreset)
+        {
+            return;
+        }
+
+        WidgetPreset? match = WidgetPresets.FindByAppearance(BuildResult());
+        _applyingPreset = true;
+        try
+        {
+            _presetBox.SelectedItem = match?.Name;
+        }
+        finally
+        {
+            _applyingPreset = false;
+        }
+
+        _presetNote.Text = match?.Description
+            ?? "Custom: your own mix of settings. Pick a preset to start from a known look.";
+    }
+
+    /// <summary>
+    /// Pushes a config into every control that owns an appearance value. The live-change
+    /// handlers are already attached, so this is followed by one publish rather than a
+    /// burst of them.
+    /// </summary>
+    private void FillControls(MonitorConfig config)
+    {
+        _style.SelectedIndex = IndexOfChoice(_style, WidgetStyles.Normalize(config.Style));
+        _sortOrder.SelectedIndex = IndexOfChoice(_sortOrder, StackOrder.Normalize(config.SortOrder));
+        _arrowStyle.SelectedIndex = IndexOfChoice(_arrowStyle, ArrowStyles.Normalize(config.ArrowStyle));
+        _fontFamily.SelectedIndex = IndexOfChoice(_fontFamily, FontCatalog.Normalize(config.FontFamily));
+        _arrowSize.Value = Numeric.Clamp(
+            config.ArrowSizePercent,
+            MonitorConfig.MinArrowSizePercent,
+            MonitorConfig.MaxArrowSizePercent) / 100m;
+        _barThickness.Value = Numeric.Clamp(config.BarThicknessPx, 1, MonitorConfig.MaxBarThicknessPx);
+        _segmentGap.Value = Numeric.Clamp(config.SegmentGapPx, 0, MonitorConfig.MaxSegmentGapPx);
+        _fontSize.Value = (decimal)Numeric.Clamp(config.FontSizePt, 6, 20);
+        _bold.Checked = config.FontBold;
+        _italic.Checked = config.FontItalic;
+        _roundedBars.Checked = config.RoundedBars;
+        _accentGlow.Checked = config.AccentGlow;
+
+        // Crisp text forces an opaque plate (ApplyCrispCoupling), so it is set before the
+        // tint is, otherwise switching crisp text off would leave the previous preset's
+        // backdrop switched on and the picker would report a look nobody chose.
+        _crispText.Checked = config.CrispText;
+        _showBackdrop.Checked = config.ShowBackdrop;
+        _backdropOpacity.Value = Numeric.Clamp(config.BackdropOpacity, 0, 255);
+
+        SetColor(_downloadColorButton, config.DownloadColorHex);
+        SetColor(_uploadColorButton, config.UploadColorHex);
+        SetColor(_downloadTextColorButton, config.DownloadTextColorHex);
+        SetColor(_uploadTextColorButton, config.UploadTextColorHex);
+
+        _downloadTextMode.SelectedIndex = IndexOfChoice(_downloadTextMode, TextColorModes.Normalize(config.DownloadTextColorMode));
+        _uploadTextMode.SelectedIndex = IndexOfChoice(_uploadTextMode, TextColorModes.Normalize(config.UploadTextColorMode));
+    }
+
+    private static ComboBox CreatePresetBox()
+    {
+        var combo = new ComboBox
+        {
+            DropDownStyle = ComboBoxStyle.DropDownList,
+            Width = 230,
+            AccessibleDescription = "A ready-made look. Choosing one sets the colours, bars, "
+                + "arrow, type and tint together; the rest of the settings are left alone.",
+        };
+
+        foreach (WidgetPreset preset in WidgetPresets.All)
+        {
+            combo.Items.Add(preset.Name);
+        }
+
+        return combo;
+    }
+
+    private void WireForPresetLabel(Control input)
+    {
+        switch (input)
+        {
+            case ComboBox combo:
+                combo.SelectedIndexChanged += (_, _) => SyncPresetLabel();
+                break;
+            case CheckBox check:
+                check.CheckedChanged += (_, _) => SyncPresetLabel();
+                break;
+            case NumericUpDown number:
+                number.ValueChanged += (_, _) => SyncPresetLabel();
+                break;
         }
     }
 
@@ -697,6 +887,38 @@ internal sealed class SettingsForm : Form
     {
         public override string ToString() => Label;
     }
+
+    // Test surface. The preset behaviour worth checking is the wiring between the picker
+    // and the controls, and that cannot be observed from outside the form: the point of a
+    // preset is that it moves controls the user would otherwise set by hand. These members
+    // only read and drive the real controls - no production path uses them.
+
+    internal int PresetCountForTest => _presetBox.Items.Count;
+
+    internal string? SelectedPresetForTest => _presetBox.SelectedItem as string;
+
+    internal string StyleForTest => SelectedKey(_style, WidgetStyles.Bars);
+
+    internal bool BackdropForTest => _showBackdrop.Checked;
+
+    internal bool CrispForTest => _crispText.Checked;
+
+    internal int BarThicknessForTest => (int)_barThickness.Value;
+
+    internal string DownloadColorForTest => _downloadColorButton.Tag as string ?? string.Empty;
+
+    internal void ChoosePresetForTest(string name)
+    {
+        WidgetPreset preset = WidgetPresets.Find(name)
+            ?? throw new ArgumentException($"no preset named {name}", nameof(name));
+
+        _presetBox.SelectedItem = preset.Name;
+    }
+
+    internal void SetBarThicknessForTest(int px)
+        => _barThickness.Value = Numeric.Clamp(px, 1, MonitorConfig.MaxBarThicknessPx);
+
+    internal void FillForTest(MonitorConfig config) => FillControls(config);
 
     protected override void Dispose(bool disposing)
     {

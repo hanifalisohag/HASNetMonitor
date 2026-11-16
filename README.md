@@ -17,6 +17,19 @@ shell hides or buries it.
 - Config is a plain JSON file you can edit by hand, saved automatically
 - **About** box with the version, author, contact address and licence
 
+## Presets
+
+Twenty-four ready-made looks, applied in one click from **Settings → Presets**. A preset sets
+the colours, style, bar thickness, arrow style, font size, bold/italic and the plate in one
+go; it leaves the refresh rate, the scale and the position alone, since those are not part of
+a look.
+
+Choosing **Custom** returns the dialog to hand editing. Editing any control after applying a
+preset also drops the picker back to Custom, because the name would no longer be true.
+
+Every preset is checked to stay visible on both a dark and a light taskbar: a bar colour that
+would sink into the background is rejected, so no preset can render an empty-looking widget.
+
 ## Designs
 
 Ten looks, each keeping the same live figures. Pick one under **Settings → Look → Style**.

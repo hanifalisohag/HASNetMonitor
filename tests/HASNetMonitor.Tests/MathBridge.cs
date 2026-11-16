@@ -23,6 +23,8 @@ internal static class MathBridge
 
     public static int Abs(int value) => System.Math.Abs(value);
 
+    public static double Sqrt(double value) => System.Math.Sqrt(value);
+
     public static long Abs(long value) => System.Math.Abs(value);
 
     public static double Abs(double value) => System.Math.Abs(value);

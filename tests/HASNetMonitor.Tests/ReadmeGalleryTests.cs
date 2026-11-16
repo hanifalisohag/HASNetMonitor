@@ -11,6 +11,32 @@ namespace HASNetMonitor.Tests;
 /// </summary>
 public class ReadmeGalleryTests
 {
+    /// <summary>
+    /// The README states how many presets there are. That number has to come from the table,
+    /// or the first preset added makes the documentation wrong.
+    /// </summary>
+    [Fact]
+    public void TheReadmePresetCountMatchesTheTable()
+    {
+        string readme = Readme();
+        string[] words = ["Twenty-four", "Twenty-five", "Twenty-three"];
+
+        string stated = WidgetPresets.All.Count == 24 ? "Twenty-four"
+            : WidgetPresets.All.Count == 25 ? "Twenty-five"
+            : WidgetPresets.All.Count == 23 ? "Twenty-three"
+            : throw new Xunit.Sdk.XunitException(
+                $"the README spells out the count in words; add {WidgetPresets.All.Count} to this test and the prose");
+
+        Assert.Contains(stated, readme, StringComparison.Ordinal);
+        Assert.Contains("Settings → Presets", readme, StringComparison.Ordinal);
+
+        // The other two numbers must not also appear, or the sentence is ambiguous.
+        foreach (string other in words.Where(w => !string.Equals(w, stated, StringComparison.Ordinal)))
+        {
+            Assert.DoesNotContain(other, readme, StringComparison.Ordinal);
+        }
+    }
+
     private static string Readme() => SourceText.Read(".", "README.md");
 
     private static string Root() => SourceText.Root();
