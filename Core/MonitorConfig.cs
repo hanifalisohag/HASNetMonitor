@@ -45,7 +45,7 @@ internal sealed class MonitorConfig
     public const double MinFontSizePt = 6;
     public const double MaxFontSizePt = 20;
     public const string DefaultDownloadColor = "#2ECC71";
-    public const string DefaultUploadColor = "#E74C3C";
+    public const string DefaultUploadColor = "#E6643C";
 
     public string DownloadColorHex { get; set; } = DefaultDownloadColor;
 
@@ -57,10 +57,10 @@ internal sealed class MonitorConfig
     /// <summary>Where the upload figure takes its colour from; see <see cref="TextColorModes"/>.</summary>
     public string UploadTextColorMode { get; set; } = TextColorModes.Auto;
 
-    /// <summary>Used for the download figure when its mode is <see cref="TextColorModes.Custom"/>.</summary>
+    /// <summary>Used for the download figure when its mode is <see cref="TextColorModes.Bar"/>.</summary>
     public string DownloadTextColorHex { get; set; } = DefaultTextColor;
 
-    /// <summary>Used for the upload figure when its mode is <see cref="TextColorModes.Custom"/>.</summary>
+    /// <summary>Used for the upload figure when its mode is <see cref="TextColorModes.Bar"/>.</summary>
     public string UploadTextColorHex { get; set; } = DefaultTextColor;
 
     /// <summary>One of <see cref="ArrowStyles"/>; unknown values fall back to the classic arrows.</summary>
