@@ -1,0 +1,89 @@
+name: Installer
+
+# Every push to main produces a Setup exe, so a release never depends on someone
+# remembering to run the two commands in installer/HASNetMonitor.iss by hand.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  installer:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@v4
+
+      # The project targets net11.0-windows; the shipped exe is the net48 build.
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '11.0.x'
+
+      # The version baked into the Setup file name and the wizard comes from the one
+      # place the app reads it: <Version> in HASNetMonitor.csproj.
+      - name: Read version from the project file
+        shell: pwsh
+        run: |
+          $xml = [xml](Get-Content -Raw HASNetMonitor.csproj)
+          $version = ($xml.Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1).Trim()
+          if (-not $version) { throw 'HASNetMonitor.csproj has no <Version>' }
+          "APP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "version $version"
+
+      # Inno Setup 6 ships on the Windows images but is not on PATH. Prefer the
+      # preinstalled copy; install it only if an image update ever drops it.
+      - name: Locate Inno Setup compiler
+        shell: pwsh
+        run: |
+          $candidates = @(
+            'C:\Program Files (x86)\Inno Setup 6\ISCC.exe',
+            'C:\Program Files\Inno Setup 6\ISCC.exe',
+            "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe"
+          )
+          $iscc = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          if (-not $iscc) {
+            $onPath = Get-Command ISCC.exe -ErrorAction SilentlyContinue
+            if ($onPath) { $iscc = $onPath.Source }
+          }
+          if (-not $iscc) {
+            Write-Host 'Inno Setup not found; installing it.'
+            choco install innosetup --no-progress -y
+            $iscc = $candidates | Where-Object { Test-Path $_ } | Select-Object -First 1
+          }
+          if (-not $iscc) { throw 'ISCC.exe could not be found or installed' }
+          "ISCC=$iscc" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+          Write-Host "using $iscc"
+
+      # The same publish command documented in the .iss and README. The output is the
+      # app: one exe, no runtime to download, nothing to install alongside it.
+      - name: Publish the net48 build
+        shell: pwsh
+        run: dotnet publish HASNetMonitor.csproj -c Release -f net48 -o publish
+
+      - name: Check the publish output
+        shell: pwsh
+        run: |
+          $exe = 'publish\HASNetMonitor.exe'
+          if (-not (Test-Path $exe)) { throw "publish did not produce $exe" }
+          Write-Host ("{0:N0} bytes" -f (Get-Item $exe).Length)
+
+      - name: Compile the installer
+        shell: pwsh
+        run: |
+          & $env:ISCC "/DAppVersion=$env:APP_VERSION" 'installer\HASNetMonitor.iss'
+          if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE" }
+
+      - name: Check the installer output
+        shell: pwsh
+        run: |
+          $setup = "installer\Output\HASNetMonitor-Setup-$env:APP_VERSION.exe"
+          if (-not (Test-Path $setup)) { throw "ISCC did not produce $setup" }
+          Write-Host ("{0:N0} bytes" -f (Get-Item $setup).Length)
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: HASNetMonitor-Setup-${{ env.APP_VERSION }}
+          path: installer/Output/HASNetMonitor-Setup-*.exe
+          if-no-files-found: error
