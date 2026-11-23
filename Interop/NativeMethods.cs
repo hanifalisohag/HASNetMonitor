@@ -574,6 +574,12 @@ internal static class NativeMethods
     [DllImport("pdh.dll", EntryPoint = "PdhAddEnglishCounterW", CharSet = CharSet.Unicode)]
     internal static extern int PdhAddEnglishCounterW(IntPtr hQuery, string szFullCounterPath, long dwUserData, out IntPtr phCounter);
 
+    /// <summary>PDH_MORE_DATA: the buffer needed is larger than the one supplied.</summary>
+    internal const int PdhMoreData = unchecked((int)0x800007D2);
+
+    [DllImport("pdh.dll", EntryPoint = "PdhExpandWildCardPathW", CharSet = CharSet.Unicode)]
+    internal static extern int PdhExpandWildCardPathW(IntPtr szDataSource, string szWildCardPath, IntPtr mszExpandedPathList, ref uint pcchPathListLength, uint dwFlags);
+
     [DllImport("pdh.dll", EntryPoint = "PdhCollectQueryData")]
     internal static extern int PdhCollectQueryData(IntPtr hQuery);
 

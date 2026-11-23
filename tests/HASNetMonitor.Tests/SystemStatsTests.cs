@@ -58,7 +58,7 @@ public class SystemStatsTests
     }
 
     [Fact]
-    public void AnUnavailableChipIsOmittedRatherThanRenderedAsAZero()
+    public void AnUnavailableChipShowsAPlaceholderRatherThanAZero()
     {
         SystemStatsReading reading = new SystemStatsReading(
             double.NaN, double.NaN, null, -1,
@@ -67,7 +67,14 @@ public class SystemStatsTests
 
         StatsItem[] items = SystemStats.BuildItems(reading, ChipConfig());
 
-        Assert.Empty(items);
+        // Every enabled metric keeps its slot, so the widget's size is stable; the value
+        // is a placeholder, never a confident-looking zero.
+        Assert.Equal(4, items.Length);
+        Assert.Contains(items, item => item.Text == "C: --");
+        Assert.Contains(items, item => item.Text == "R: --");
+        Assert.Contains(items, item => item.Text == "G: --");
+        Assert.Contains(items, item => item.Text == "D: --");
+        Assert.DoesNotContain(items, item => item.Text.Contains("0%"));
     }
 
     [Fact]
@@ -99,7 +106,14 @@ public class SystemStatsTests
     [Fact]
     public void JoinedTextIsEmptyWithoutItemsAndJoinsWithTheDotSeparator()
     {
-        Assert.Equal(string.Empty, SystemStats.JoinedText(SystemStatsReading.Empty, ChipConfig()));
+        // Nothing enabled means no chips at all, so the caption is empty.
+        MonitorConfig none = ChipConfig();
+        none.ShowCpu = false;
+        none.ShowRam = false;
+        none.ShowGpu = false;
+        none.ShowDisk = false;
+        none.ShowBattery = false;
+        Assert.Equal(string.Empty, SystemStats.JoinedText(SystemStatsReading.Empty, none));
 
         string joined = SystemStats.JoinedText(KnownReading(), ChipConfig());
 
@@ -107,7 +121,7 @@ public class SystemStatsTests
     }
 
     [Fact]
-    public void ADiskWithoutAKnownTotalIsNotShown()
+    public void ADiskWithoutAKnownTotalShowsAPlaceholder()
     {
         SystemStatsReading reading = KnownReading() with
         {
@@ -116,7 +130,8 @@ public class SystemStatsTests
 
         StatsItem[] items = SystemStats.BuildItems(reading, ChipConfig());
 
-        Assert.DoesNotContain(items, item => item.Text.Contains("D:"));
+        Assert.Contains(items, item => item.Text == "D: --");
+        Assert.DoesNotContain(items, item => item.Text.Contains("D: 0%"));
     }
 
     [Theory]
@@ -145,10 +160,11 @@ public class SystemStatsTests
     }
 
     /// <summary>
-    /// The sampling happens every call, so the chips advance at the same rate as the
-    /// figures. The first call after a reset primes the CPU baseline and reports nothing;
-    /// the second call must read the counters again, not return a cached prime, or the
-    /// chips would freeze at roughly one percent a second whatever the refresh interval is.
+    /// Each metric samples itself on its own thread, so the chips advance at the metric's
+    /// own cadence rather than being frozen at whatever the first read produced. The CPU
+    /// sampler primes its baseline on the first read and reports nothing; a later read
+    /// must measure real counter deltas, not return the cached prime, or the chip would
+    /// freeze at roughly one percent a second whatever the refresh interval is.
     /// </summary>
     [Fact]
     public void QuickCallsDoNotReturnTheCachedPrimer()
@@ -156,14 +172,19 @@ public class SystemStatsTests
         var stats = new SystemStats();
         MonitorConfig config = ChipConfig();
 
-        SystemStatsReading first = stats.Sample(config);
-        Assert.True(double.IsNaN(first.CpuPercent), "the first call primes the baseline and reports nothing");
+        // Before Start the samplers have no value, so the chip shows its placeholder.
+        SystemStatsReading before = stats.Sample(config);
+        Assert.True(double.IsNaN(before.CpuPercent), "no sampler has run yet, so there is no CPU reading");
 
-        // Let the OS tick advance so the second call measures real counter deltas.
-        System.Threading.Thread.Sleep(100);
-        SystemStatsReading second = stats.Sample(config);
-        Assert.False(double.IsNaN(second.CpuPercent), "the second call must sample the counters again, not a cached read");
-        Assert.True(second.CpuPercent >= 0.0 && second.CpuPercent <= 100.0);
+        stats.Start();
+
+        // Let the CPU sampler prime its baseline and then take a real measurement.
+        System.Threading.Thread.Sleep(2000);
+        SystemStatsReading after = stats.Sample(config);
+        Assert.False(double.IsNaN(after.CpuPercent), "the CPU sampler must produce a real reading, not a cached prime");
+        Assert.True(after.CpuPercent >= 0.0 && after.CpuPercent <= 100.0);
+
+        stats.Dispose();
     }
 
     /// <summary>
@@ -319,7 +340,18 @@ public class SystemStatsTests
     [Fact]
     public void TheGpuMonitorEitherResolvesAPercentOrReturnsNull()
     {
-        double? percent = new GpuMonitor().ReadPercent();
+        // The collect is asynchronous (a slow GPU must never block the sample thread),
+        // so this waits for the first reading before checking its range.
+        using var monitor = new GpuMonitor();
+        double? percent = null;
+        for (int i = 0; i < 100 && percent is null; i++)
+        {
+            percent = monitor.ReadPercent();
+            if (percent is null)
+            {
+                Thread.Sleep(50);
+            }
+        }
 
         if (percent is double value)
         {
@@ -494,8 +526,14 @@ public class SystemStatsTests
         SystemStatsReading reading = KnownReading();
         WidgetLayout noText = renderer.ComputeLayout(config, 1f, 48, reading);
 
-        config.ShowText = true;
-        WidgetLayout noItems = renderer.ComputeLayout(config, 1f, 48, SystemStatsReading.Empty);
+        // No metric enabled means no chips at all, so no block is reserved.
+        MonitorConfig noMetrics = ChipConfig();
+        noMetrics.ShowCpu = false;
+        noMetrics.ShowRam = false;
+        noMetrics.ShowGpu = false;
+        noMetrics.ShowDisk = false;
+        noMetrics.ShowBattery = false;
+        WidgetLayout noItems = renderer.ComputeLayout(noMetrics, 1f, 48, SystemStatsReading.Empty);
 
         Assert.Equal(0, noText.StatsColumns);
         Assert.Equal(0, noText.StatsEmPixels);

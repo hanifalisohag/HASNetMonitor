@@ -450,11 +450,17 @@ internal class LayeredWindow : NativeWindow, IDisposable
     /// (<paramref name="x"/>, <paramref name="y"/>). Unsigned pixels are fully
     /// transparent; the blit is atomic.
     /// </summary>
-    public void Present(Bitmap bitmap, int x, int y)
+    /// <summary>
+    /// Draws <paramref name="bitmap"/> at the given position. Returns false when nothing
+    /// was drawn - the window is gone, or the surface could not be created for the new
+    /// size. The caller must not record the frame as presented in that case, or the
+    /// widget would believe it is up to date and never draw again.
+    /// </summary>
+    public bool Present(Bitmap bitmap, int x, int y)
     {
         if (_disposed || _windowHandle == IntPtr.Zero || bitmap is null)
         {
-            return;
+            return false;
         }
 
         // The presence timer re-blits from another thread; the surface and its device
@@ -463,22 +469,22 @@ internal class LayeredWindow : NativeWindow, IDisposable
         {
             if (_disposed)
             {
-                return;
+                return false;
             }
 
             if (!EnsureSurface(bitmap.Width, bitmap.Height))
             {
-                return;
+                return false;
             }
 
             if (!CopyToSurface(bitmap))
             {
-                return;
+                return false;
             }
 
             _surfaceX = x;
             _surfaceY = y;
-            Blit();
+            return Blit();
         }
     }
 

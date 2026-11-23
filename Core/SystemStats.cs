@@ -29,27 +29,49 @@ internal readonly record struct SystemStatsReading(
         config.ShowCpu || config.ShowGpu || config.ShowRam || config.ShowDisk || config.ShowBattery;
 }
 
-/// <summary>One chip in the statistics block: a dot colour and the text beside it.</summary>
-internal readonly record struct StatsItem(Color Dot, string Text);
+/// <summary>
+/// One chip in the statistics block: a dot colour, the text beside it, and the widest
+/// text this chip can ever show. The column is measured against <see cref="MeasureText"/>
+/// rather than <see cref="Text"/> so a value that comes and goes - or a placeholder -
+/// cannot change the widget's width, which would force a new surface every tick.
+/// </summary>
+internal readonly record struct StatsItem(Color Dot, string Text, string MeasureText);
 
 /// <summary>
-/// Reads the system's load on every call. The widget owns one instance and calls
-/// <see cref="Sample"/> every tick, so the chips advance at the same rate as the traffic
-/// figures rather than on a slower, built-in cadence. The sampling is deliberately
-/// cheap and exception-proof, so a broken counter can never take the UI thread down.
+/// The system's load, read from four independent background samplers. The widget owns
+/// one instance and calls <see cref="Sample"/> every tick; that call only reads the
+/// cached value each sampler last produced, so it never blocks and never runs a read.
+///
+/// Each metric has its own thread and its own cadence. A slow read - a GPU PDH sweep,
+/// a disk query on a spun-down drive - delays only that metric: the others keep
+/// advancing on time, and the slow one keeps its previous value until its own read
+/// finishes. Sampling every metric in one call made the slowest metric set the pace for
+/// all of them, which is exactly the freeze this replaces.
 /// </summary>
-internal sealed class SystemStats
+internal sealed class SystemStats : IDisposable
 {
+    /// <summary>How often each metric's own thread refreshes it.</summary>
+    private const int CpuIntervalMs = 1000;
+    private const int RamIntervalMs = 1000;
+    private const int GpuIntervalMs = 1000;
+    private const int DiskIntervalMs = 2000;
+    private const int BatteryIntervalMs = 5000;
+
     private readonly CpuMonitor _cpu = new();
     private readonly MemoryMonitor _memory = new();
     private readonly GpuMonitor _gpu = new();
     private readonly DiskMonitor _disk = new();
     private readonly BatteryMonitor _battery = new();
 
+    private readonly MetricSampler<double> _cpuSampler;
+    private readonly MetricSampler<MemoryMonitor.MemoryReading> _ramSampler;
+    private readonly MetricSampler<double?> _gpuSampler;
+    private readonly MetricSampler<DiskMonitor.DiskReading> _diskSampler;
+    private readonly MetricSampler<BatteryMonitor.BatteryReading> _batterySampler;
+
     // The last known-good reading for each metric. A single failed read must not blank
     // a chip the user is already looking at, so the last good value is held - briefly.
-    // Past the grace the metric is treated as gone and the chip disappears. A metric
-    // that has never produced a reading stays absent.
+    // Past the grace the metric is treated as gone and the chip shows its placeholder.
     private const double HoldGraceSeconds = 5.0;
     private static readonly TimeSpan HoldGrace = TimeSpan.FromSeconds(HoldGraceSeconds);
 
@@ -62,24 +84,48 @@ internal sealed class SystemStats
     private DiskMonitor.DiskReading _diskLastGood = DiskMonitor.DiskReading.Unavailable;
     private long _diskLastGoodTicks;
 
+    public SystemStats()
+    {
+        _cpuSampler = new MetricSampler<double>(_cpu.ReadPercent, double.NaN, CpuIntervalMs);
+        _ramSampler = new MetricSampler<MemoryMonitor.MemoryReading>(_memory.Read, MemoryMonitor.MemoryReading.Unavailable, RamIntervalMs);
+        _gpuSampler = new MetricSampler<double?>(_gpu.ReadPercent, null, GpuIntervalMs);
+        _diskSampler = new MetricSampler<DiskMonitor.DiskReading>(_disk.Read, DiskMonitor.DiskReading.Unavailable, DiskIntervalMs);
+        _batterySampler = new MetricSampler<BatteryMonitor.BatteryReading>(_battery.Read, BatteryMonitor.BatteryReading.Unavailable, BatteryIntervalMs);
+    }
+
+    /// <summary>Starts every metric's background thread. Safe to call more than once.</summary>
+    public void Start()
+    {
+        _cpuSampler.Start();
+        _ramSampler.Start();
+        _gpuSampler.Start();
+        _diskSampler.Start();
+        _batterySampler.Start();
+    }
+
     /// <summary>
-    /// The latest reading, taken fresh on every call. Cheap to call every tick; the
-    /// values advance at the same rate as the figures, which is what the user sees.
+    /// The latest reading. Every value comes from a cached sampler, so this call never
+    /// blocks and never runs a read: a metric whose own read is slow keeps its previous
+    /// value while the others advance.
     /// </summary>
     public SystemStatsReading Sample(MonitorConfig config)
     {
+        // A caller that never called Start still gets values: the first Sample starts the
+        // samplers. Start is idempotent, so the widget's explicit call is harmless.
+        Start();
+
         long now = Elapsed.Now();
 
         double cpu = double.NaN;
         if (config.ShowCpu)
         {
-            cpu = HoldLastGood(_cpu.ReadPercent(), ref _cpuLastGood, ref _cpuLastGoodTicks, now, HoldGrace);
+            cpu = HoldLastGood(_cpuSampler.Latest, ref _cpuLastGood, ref _cpuLastGoodTicks, now, HoldGrace);
         }
 
         double ramPercent = double.NaN;
         if (config.ShowRam)
         {
-            MemoryMonitor.MemoryReading memory = _memory.Read();
+            MemoryMonitor.MemoryReading memory = _ramSampler.Latest;
             double fresh = memory.IsKnown ? memory.Percent : double.NaN;
             ramPercent = HoldLastGood(fresh, ref _ramLastGood, ref _ramLastGoodTicks, now, HoldGrace);
         }
@@ -87,20 +133,20 @@ internal sealed class SystemStats
         double? gpu = null;
         if (config.ShowGpu)
         {
-            gpu = HoldLastGood(_gpu.ReadPercent(), ref _gpuLastGood, ref _gpuLastGoodTicks, now, HoldGrace);
+            gpu = HoldLastGood(_gpuSampler.Latest, ref _gpuLastGood, ref _gpuLastGoodTicks, now, HoldGrace);
         }
 
         DiskMonitor.DiskReading disk = DiskMonitor.DiskReading.Unavailable;
         if (config.ShowDisk)
         {
-            disk = HoldLastGood(_disk.Read(), ref _diskLastGood, ref _diskLastGoodTicks, now, HoldGrace);
+            disk = HoldLastGood(_diskSampler.Latest, ref _diskLastGood, ref _diskLastGoodTicks, now, HoldGrace);
         }
 
         // Battery is never held: it shows only while the machine is on battery power, and
         // is hidden the moment it is plugged in - a stale battery chip would be worse
         // than none.
         BatteryMonitor.BatteryReading battery = config.ShowBattery
-            ? _battery.Read()
+            ? _batterySampler.Latest
             : BatteryMonitor.BatteryReading.Unavailable;
 
         return new SystemStatsReading(
@@ -185,6 +231,17 @@ internal sealed class SystemStats
         _diskLastGoodTicks = 0L;
     }
 
+    /// <summary>Stops every metric's background thread and releases the PDH query behind the GPU path.</summary>
+    public void Dispose()
+    {
+        _cpuSampler.Dispose();
+        _ramSampler.Dispose();
+        _gpuSampler.Dispose();
+        _diskSampler.Dispose();
+        _batterySampler.Dispose();
+        _gpu.Dispose();
+    }
+
     /// <summary>The accent colours the chips are drawn with, keyed by metric.</summary>
     internal static class StatsColors
     {
@@ -197,26 +254,46 @@ internal sealed class SystemStats
     }
 
     /// <summary>
-    /// The chips to draw, in reading order. Metrics that are disabled, unavailable or
-    /// hidden by the caller are simply absent - never rendered as a placeholder.
+    /// The text shown for an enabled metric that has no reading yet. It is deliberately
+    /// not a number: the chip keeps its slot so the widget's size never changes when a
+    /// reading comes and goes, and the user sees that the metric is enabled but has no
+    /// value rather than a confident-looking zero.
+    /// </summary>
+    public const string Placeholder = "--";
+
+    /// <summary>
+    /// The chips to draw, in reading order. An enabled metric always gets a chip: when it
+    /// has no reading the chip shows <see cref="Placeholder"/> instead of dropping out, so
+    /// a metric that flickers between readable and unreadable cannot resize the widget on
+    /// every tick. A disabled metric is absent. The battery is the one exception - it is
+    /// hidden on AC power, which is a deliberate "nothing to show", not a missing value.
     /// </summary>
     public static StatsItem[] BuildItems(SystemStatsReading reading, MonitorConfig config)
     {
         var items = new List<StatsItem>(5);
 
-        if (config.ShowCpu && !double.IsNaN(reading.CpuPercent))
+        if (config.ShowCpu)
         {
-            items.Add(new StatsItem(StatsColors.Cpu, $"C: {FormatPercent(reading.CpuPercent)}"));
+            items.Add(new StatsItem(
+                StatsColors.Cpu,
+                double.IsNaN(reading.CpuPercent) ? $"C: {Placeholder}" : $"C: {FormatPercent(reading.CpuPercent)}",
+                "C: 100%"));
         }
 
-        if (config.ShowRam && !double.IsNaN(reading.RamPercent))
+        if (config.ShowRam)
         {
-            items.Add(new StatsItem(StatsColors.Ram, $"R: {FormatPercent(reading.RamPercent)}"));
+            items.Add(new StatsItem(
+                StatsColors.Ram,
+                double.IsNaN(reading.RamPercent) ? $"R: {Placeholder}" : $"R: {FormatPercent(reading.RamPercent)}",
+                "R: 100%"));
         }
 
-        if (config.ShowGpu && reading.GpuPercent is double gpu)
+        if (config.ShowGpu)
         {
-            items.Add(new StatsItem(StatsColors.Gpu, $"G: {FormatPercent(gpu)}"));
+            items.Add(new StatsItem(
+                StatsColors.Gpu,
+                reading.GpuPercent is double gpu ? $"G: {FormatPercent(gpu)}" : $"G: {Placeholder}",
+                "G: 100%"));
         }
 
         if (config.ShowBattery && reading.Battery.IsKnown && reading.Battery.OnBattery)
@@ -224,14 +301,21 @@ internal sealed class SystemStats
             Color batteryDot = reading.Battery.Charging || reading.Battery.Percent >= 20
                 ? StatsColors.BatteryCharging
                 : StatsColors.BatteryLow;
-            items.Add(new StatsItem(batteryDot, $"B: {reading.Battery.Percent}%"));
+            items.Add(new StatsItem(batteryDot, $"B: {reading.Battery.Percent}%", "B: 100%"));
         }
 
-        if (config.ShowDisk && reading.Disk.IsKnown && reading.Disk.TotalBytes > 0)
+        if (config.ShowDisk)
         {
-            long used = Math.Max(0, reading.Disk.TotalBytes - reading.Disk.FreeBytes);
-            double usage = 100.0 * used / reading.Disk.TotalBytes;
-            items.Add(new StatsItem(StatsColors.Disk, $"D: {FormatPercent(usage)}"));
+            if (reading.Disk.IsKnown && reading.Disk.TotalBytes > 0)
+            {
+                long used = Math.Max(0, reading.Disk.TotalBytes - reading.Disk.FreeBytes);
+                double usage = 100.0 * used / reading.Disk.TotalBytes;
+                items.Add(new StatsItem(StatsColors.Disk, $"D: {FormatPercent(usage)}", "D: 100%"));
+            }
+            else
+            {
+                items.Add(new StatsItem(StatsColors.Disk, $"D: {Placeholder}", "D: 100%"));
+            }
         }
 
         return items.ToArray();

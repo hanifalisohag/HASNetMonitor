@@ -144,6 +144,13 @@ internal sealed class TaskbarWidget : LayeredWindow
     private int _configVersion;
     private volatile bool _stopped;
 
+    // 0 = idle, 1 = a sample is running. The sample timer fires on a pool thread every
+    // interval regardless of whether the previous callback finished, so a slow sample
+    // (a GPU PDH sweep, a disk read on a spun-down drive) would otherwise pile callbacks
+    // up on the pool until the UI thread starves and the whole widget freezes. One
+    // sample in flight at a time; a tick that arrives while one is running is skipped.
+    private readonly SingleFlight _sampleFlight = new();
+
     public TaskbarWidget(MonitorConfig config)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
@@ -283,6 +290,11 @@ internal sealed class TaskbarWidget : LayeredWindow
         lock (_timerGate)
         {
             _timer?.Dispose();
+
+            // Each metric samples itself on its own thread, so the tick below only reads
+            // cached values and can never be held up by a slow GPU or disk read.
+            _stats.Start();
+
             int interval = _config.EffectiveRefreshIntervalMs;
             _timer = new System.Threading.Timer(static state => ((TaskbarWidget)state!).SampleOnce(), this, 100, interval);
 
@@ -479,23 +491,45 @@ internal sealed class TaskbarWidget : LayeredWindow
             return;
         }
 
-        (long Received, long Sent) totals;
-        try
-        {
-            totals = _sampler.ReadTotals();
-        }
-        catch (Exception ex) when (ex is System.Net.NetworkInformation.NetworkInformationException
-                                       or PlatformNotSupportedException
-                                       or InvalidOperationException)
+        // One sample in flight at a time. The timer fires every interval whether or not
+        // the last callback finished, so without this a slow sample (a GPU PDH sweep, a
+        // disk read on a spun-down drive) piles callbacks up on the pool until the UI
+        // thread starves and the whole widget freezes. A tick that lands while a sample
+        // is running is dropped: the next one carries the fresh reading anyway.
+        _sampleFlight.TryRun(SampleOnceCore);
+    }
+
+    private void SampleOnceCore()
+    {
+        if (_stopped)
         {
             return;
         }
 
-        // The chips are sampled here too, on this thread, rather than on the UI thread:
-        // the GPU sweep is a chain of PDH queries that can take hundreds of milliseconds
-        // on a busy GPU, and the UI thread is not the place for that. The chips advance
-        // at exactly the same rate as the figures because they travel inside the same
-        // sample - every tick one reading feeds both.
+        // The traffic read and the chip read are independent: a failure in one must
+        // never stop the other. The traffic totals are best-effort - a network hiccup
+        // leaves the figures where they are - but the chips are always sampled and
+        // always posted, so a broken adapter can never leave every chip stuck on its
+        // placeholder.
+        (long Received, long Sent) totals = (0, 0);
+        bool haveTotals = false;
+        try
+        {
+            totals = _sampler.ReadTotals();
+            haveTotals = true;
+        }
+        catch (Exception ex) when (ex is System.Net.NetworkInformation.NetworkInformationException
+                                       or PlatformNotSupportedException
+                                       or InvalidOperationException
+                                       or ObjectDisposedException
+                                       or ArgumentException)
+        {
+            // Keep the last figures; the chips below still advance.
+        }
+
+        // The chips are read here, on this thread, but the reads themselves run on each
+        // metric's own background thread: Sample only returns the cached value, so a slow
+        // GPU sweep or disk query cannot hold up this sample or any other chip.
         SystemStatsReading stats;
         try
         {
@@ -514,7 +548,20 @@ internal sealed class TaskbarWidget : LayeredWindow
         long timestamp = Stopwatch.GetTimestamp();
         lock (_pendingGate)
         {
-            _pendingSample = (totals.Received, totals.Sent, timestamp, stats);
+            if (haveTotals)
+            {
+                _pendingSample = (totals.Received, totals.Sent, timestamp, stats);
+            }
+            else if (_pendingSample is { } previous)
+            {
+                // No fresh traffic totals: keep the previous byte counts so the rate
+                // stays sane, but carry the fresh chips and timestamp.
+                _pendingSample = (previous.Received, previous.Sent, timestamp, stats);
+            }
+            else
+            {
+                _pendingSample = (0, 0, timestamp, stats);
+            }
         }
 
         IntPtr handle = HandleForPosting;
@@ -654,7 +701,15 @@ internal sealed class TaskbarWidget : LayeredWindow
 
         FrameTrace.Write($"present rect={rect} size={layout.Size}");
         using Bitmap frame = _renderer.Render(_visual, _config, layout, theme, orientation);
-        Present(frame, rect.Left, rect.Top);
+        if (!Present(frame, rect.Left, rect.Top))
+        {
+            // Nothing was drawn - the surface could not be made for this size, or the
+            // window is gone. Do not record the frame as presented: the next tick must
+            // try again, or the widget would sit on a stale frame forever.
+            FrameTrace.Write("present failed -> will retry next tick");
+            return;
+        }
+
         _lastPresentTicks = Stopwatch.GetTimestamp();
         _presented = state;
         _presentedFrames++;
@@ -942,6 +997,11 @@ internal sealed class TaskbarWidget : LayeredWindow
             _shellEventHook = IntPtr.Zero;
         }
         _desktopPresence.Dispose();
+        lock (_statsGate)
+        {
+            _stats.Dispose();
+        }
+        _sampler.Dispose();
         lock (_timerGate)
         {
             _timer?.Dispose();

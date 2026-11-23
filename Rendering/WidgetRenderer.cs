@@ -256,7 +256,7 @@ internal sealed class WidgetRenderer
                 for (int i = 0; i < statsItems.Length; i++)
                 {
                     chipWidths[i] = chipDotPx + chipGapAfterDot + measureGraphics.MeasureString(
-                        statsItems[i].Text, statsFont, PointF.Empty, chipFormat).Width;
+                        statsItems[i].MeasureText, statsFont, PointF.Empty, chipFormat).Width;
                 }
 
                 // Columns are filled top-down, two chips per column at most.
