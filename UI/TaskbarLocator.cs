@@ -20,6 +20,32 @@ internal static class TaskbarLocator
 {
     private const uint MonitorDefaultToNearest = 2;
 
+    /// <summary>
+    /// The monitor a window sits on, as a rectangle. False whenever the monitor cannot
+    /// be named, leaving <paramref name="bounds"/> empty for the caller to treat as
+    /// "no evidence" rather than a rejection.
+    /// </summary>
+    public static bool TryGetMonitorBounds(IntPtr window, out PixelRect bounds)
+    {
+        bounds = default;
+
+        IntPtr monitor = NativeMethods.MonitorFromWindow(window, MonitorDefaultToNearest);
+        if (monitor == IntPtr.Zero)
+        {
+            return false;
+        }
+
+        var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
+        if (!NativeMethods.GetMonitorInfo(monitor, ref info))
+        {
+            return false;
+        }
+
+        bounds = PixelRect.FromEdges(
+            info.Monitor.Left, info.Monitor.Top, info.Monitor.Right, info.Monitor.Bottom);
+        return !bounds.IsEmpty;
+    }
+
     public static bool TryLocate(out TaskbarSnapshot snapshot)
     {
         snapshot = default;
@@ -59,20 +85,7 @@ internal static class TaskbarLocator
             dpiScale = dpi / 96f;
         }
 
-        PixelRect monitorBounds = default;
-        IntPtr monitor = NativeMethods.MonitorFromWindow(taskbar, MonitorDefaultToNearest);
-        if (monitor != IntPtr.Zero)
-        {
-            var info = new MonitorInfo { Size = Marshal.SizeOf<MonitorInfo>() };
-            if (NativeMethods.GetMonitorInfo(monitor, ref info))
-            {
-                monitorBounds = PixelRect.FromEdges(
-                    info.Monitor.Left,
-                    info.Monitor.Top,
-                    info.Monitor.Right,
-                    info.Monitor.Bottom);
-            }
-        }
+        TryGetMonitorBounds(taskbar, out PixelRect monitorBounds);
 
         snapshot = new TaskbarSnapshot(taskbar, taskbarRect, trayRect, monitorBounds, dpiScale);
         return true;

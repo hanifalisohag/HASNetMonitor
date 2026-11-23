@@ -264,16 +264,110 @@ internal sealed class TaskbarWidget : LayeredWindow
 
     private void KeepPresent()
     {
-        if (_stopped || !IsShown)
+        if (_stopped)
             return;
 
-        // The taskbar handle from the last frame goes stale when explorer restarts.
-        IntPtr taskbar = _taskbarHandle;
-        if (!NativeMethods.IsWindow(taskbar))
-            taskbar = NativeMethods.FindWindow("Shell_TrayWnd", null);
+        IntPtr taskbar = ResolveTaskbarHandle();
+
+        // An auto-hide bar, or a full-screen app that hides the taskbar, takes it away.
+        // This widget is topmost, so left alone it would float over whatever owns the
+        // screen; it goes with the taskbar instead. The repair paths are skipped too:
+        // re-blitting a hidden widget would bring it straight back.
+        if (!NativeMethods.IsWindowVisible(taskbar))
+        {
+            if (IsShown)
+                HideIfShown();
+            return;
+        }
+
+        // The taskbar does not have to go away to be covered: a browser in fullscreen
+        // (YouTube, video players) fills its own monitor while the taskbar itself stays
+        // alive and visible behind it. The widget must not float over that video either,
+        // and it leaves the repair paths alone for the same reason.
+        if (FullScreenCoversTaskbar(taskbar))
+        {
+            if (IsShown)
+                HideIfShown();
+            return;
+        }
+
+        // The taskbar is back (full-screen exited, auto-hide expanded) and the widget
+        // is not up: present it again.
+        if (!IsShown)
+        {
+            Render();
+            return;
+        }
 
         FollowDesktopIfStranded(DefersRepair(BandOf(taskbar), BandOf(HandleForPosting)));
         RecoverIfCovered(taskbar);
+    }
+
+    /// <summary>The taskbar handle from the last frame, re-resolved after explorer restarts.</summary>
+    private IntPtr ResolveTaskbarHandle()
+    {
+        IntPtr taskbar = _taskbarHandle;
+        if (!NativeMethods.IsWindow(taskbar))
+            taskbar = NativeMethods.FindWindow("Shell_TrayWnd", null);
+        return taskbar;
+    }
+
+    /// <summary>
+    /// The foreground window, when it is a full-screen app owning the monitor the widget
+    /// sits on. Shell surfaces never count - the desktop, Task View and Start are not
+    /// full-screen apps, and the widget legitimately stays for them. Returns false for
+    /// anything that cannot name its monitor or its root window: insufficient evidence,
+    /// so nothing is hidden on a guess.
+    /// </summary>
+    private bool FullScreenCoversTaskbar(IntPtr taskbar)
+    {
+        IntPtr foreground = NativeMethods.GetForegroundWindow();
+        if (foreground == IntPtr.Zero || !NativeMethods.IsWindow(foreground))
+        {
+            return false;
+        }
+
+        IntPtr root = NativeMethods.GetAncestor(foreground, NativeMethods.GA_ROOT);
+        if (root == IntPtr.Zero)
+        {
+            root = foreground;
+        }
+
+        if (ShellSurface.IsShellClassName(NativeMethods.GetClassNameOf(root)))
+        {
+            return false;
+        }
+
+        if (!NativeMethods.GetWindowRect(root, out NativeRect rect))
+        {
+            return false;
+        }
+
+        var window = PixelRect.FromEdges(rect.Left, rect.Top, rect.Right, rect.Bottom);
+        if (window.IsEmpty)
+        {
+            return false;
+        }
+
+        if (!TaskbarLocator.TryGetMonitorBounds(root, out PixelRect monitor))
+        {
+            return false;
+        }
+
+        if (!IsFullScreenWindow(window, monitor))
+        {
+            return false;
+        }
+
+        // The coverage rule: hide only when the window would actually cover the taskbar
+        // the widget lives on, so a full-screen window on another monitor leaves it up.
+        if (taskbar == IntPtr.Zero || !NativeMethods.GetWindowRect(taskbar, out NativeRect barRect))
+        {
+            return false;
+        }
+
+        var bar = PixelRect.FromEdges(barRect.Left, barRect.Top, barRect.Right, barRect.Bottom);
+        return FullScreenWindowCoversTaskbar(window, bar);
     }
 
     /// <summary>
@@ -432,6 +526,17 @@ internal sealed class TaskbarWidget : LayeredWindow
             return;
         }
 
+        // A full-screen window owns every pixel the widget would draw on. The taskbar can
+        // stay alive and visible behind it - a browser in fullscreen does not hide it - so
+        // the confinement gate below cannot see this case. The widget hides instead of
+        // drawing a stale frame over whatever owns the screen, whatever the locate path says.
+        if (FullScreenCoversTaskbar(ResolveTaskbarHandle()))
+        {
+            FrameTrace.Write("render: full-screen window covers the taskbar -> hide");
+            HideIfShown();
+            return;
+        }
+
         if (!TaskbarLocator.TryLocate(out TaskbarSnapshot snapshot))
         {
             // The taskbar is being recreated, or the display is changing. Keep the last
@@ -447,37 +552,38 @@ internal sealed class TaskbarWidget : LayeredWindow
             : snapshot.TaskbarRect.Width;
 
         WidgetLayout layout = _renderer.ComputeLayout(_config, snapshot.DpiScale, maxExtent);
-        if (!layout.FitsBounds)
-        {
-            // The taskbar is too small for two legible rows; don't draw something
-            // that pokes out of it.
-            FrameTrace.Write($"render: layout not fitting ({layout.Size}) -> keep last frame");
-            return;
-        }
-
-        if (TaskbarGeometry.ComputePlacement(
+        PixelRect? placement = layout.FitsBounds
+            ? TaskbarGeometry.ComputePlacement(
                 snapshot.TaskbarRect,
                 snapshot.TrayRect,
                 layout.Size,
                 _config.OffsetFromTrayPx,
                 nudgeX: _config.NudgeXPx,
-                nudgeY: _config.NudgeYPx) is not { } placement)
+                nudgeY: _config.NudgeYPx)
+            : null;
+
+        // The widget lives in the taskbar and nowhere else. An auto-hide bar parks it off
+        // screen, and even a visible taskbar that cannot hold the widget honestly - too
+        // small, or lying about where it is - leaves the widget nothing to sit on (the
+        // "covers the screen outright" case is handled above). Keeping the last frame
+        // would draw a stale snapshot over whatever owns the screen, so the widget hides
+        // instead.
+        if (!WidgetMayPresent(
+                NativeMethods.IsWindowVisible(snapshot.TaskbarHandle),
+                layout.FitsBounds,
+                placement,
+                snapshot.TaskbarRect,
+                snapshot.MonitorBounds))
         {
-            FrameTrace.Write("render: placement failed -> keep last frame");
+            FrameTrace.Write($"render: not presenting (layout {layout.Size}, placement {placement?.ToString() ?? "none"}) -> hide");
+            HideIfShown();
             return;
         }
 
-        // Auto-hidden or otherwise off-screen taskbars: stay hidden instead of
-        // floating in the middle of nowhere.
-        if (!snapshot.MonitorBounds.IsEmpty && placement.Intersect(snapshot.MonitorBounds).IsEmpty)
-        {
-            FrameTrace.Write($"render: placement {placement} off monitor {snapshot.MonitorBounds} -> keep last frame");
-            return;
-        }
-
+        PixelRect rect = placement!.Value;
         WidgetTheme theme = WidgetTheme.FromRegistry();
         PresentationState state = PresentationState.For(
-            _visual, layout, placement, theme.IsDark, _configVersion, snapshot.DpiScale);
+            _visual, layout, rect, theme.IsDark, _configVersion, snapshot.DpiScale);
 
         if (!NeedsPresent(IsShown, _presented, state))
         {
@@ -485,9 +591,9 @@ internal sealed class TaskbarWidget : LayeredWindow
             return;
         }
 
-        FrameTrace.Write($"present rect={placement} size={layout.Size}");
+        FrameTrace.Write($"present rect={rect} size={layout.Size}");
         using Bitmap frame = _renderer.Render(_visual, _config, layout, theme, orientation);
-        Present(frame, placement.Left, placement.Top);
+        Present(frame, rect.Left, rect.Top);
         _lastPresentTicks = Stopwatch.GetTimestamp();
         _presented = state;
         _presentedFrames++;
@@ -697,6 +803,67 @@ internal sealed class TaskbarWidget : LayeredWindow
     /// never changes z-order and so cannot cover a menu) and the taskbar or desktop
     /// being moved above us (fixed by restoring z-order).
     /// </summary>
+
+    /// <summary>
+    /// Tolerance for the edge of the monitor a full-screen window must cover before it
+    /// counts as full-screen. Wide enough for 1-2px borders and slightly off-by-one
+    /// monitor readings, narrow enough that a window stopping at the work area - a
+    /// maximized window, which is where the widget legitimately stays - never qualifies.
+    /// </summary>
+    private const int FullScreenTolerancePx = 4;
+
+    /// <summary>
+    /// The full-screen rule: a window that covers its own monitor outright owns the whole
+    /// screen the widget lives on. A normal maximized window never matches - it stops at
+    /// the work area under the taskbar, which is exactly where the widget belongs.
+    /// </summary>
+    internal static bool IsFullScreenWindow(PixelRect window, PixelRect monitor)
+        => !window.IsEmpty
+            && !monitor.IsEmpty
+            && window.Left <= monitor.Left + FullScreenTolerancePx
+            && window.Top <= monitor.Top + FullScreenTolerancePx
+            && window.Right >= monitor.Right - FullScreenTolerancePx
+            && window.Bottom >= monitor.Bottom - FullScreenTolerancePx;
+
+    /// <summary>
+    /// The coverage rule: a full-screen window hides the widget only when it covers the
+    /// taskbar the widget lives on. A full-screen window over another monitor must not
+    /// hide the widget off the screen the taskbar is on.
+    /// </summary>
+    internal static bool FullScreenWindowCoversTaskbar(PixelRect window, PixelRect taskbar)
+        => !window.IsEmpty && !taskbar.IsEmpty && !window.Intersect(taskbar).IsEmpty;
+
+    /// <summary>
+    /// Whether the widget may be shown at <paramref name="placement"/> against the taskbar
+    /// that was located, given whether the layout fit it and which monitor is in force.
+    /// This is the whole "the widget lives in the taskbar" rule: only a placement fully
+    /// inside a visible, on-screen taskbar is ever presented. Everything else means the
+    /// widget hides instead of drawing over the desktop.
+    /// </summary>
+    internal static bool WidgetMayPresent(
+        bool taskbarVisible,
+        bool layoutFits,
+        PixelRect? placement,
+        PixelRect taskbar,
+        PixelRect monitorBounds)
+        => taskbarVisible
+            && layoutFits
+            && placement is { } rect
+            && IsConfinedToTaskbar(rect, taskbar)
+            && (monitorBounds.IsEmpty || !rect.Intersect(monitorBounds).IsEmpty);
+
+    /// <summary>
+    /// The confinement rule: the presentation rect must sit entirely within the taskbar.
+    /// Everything the widget draws stays inside the bar's bounds; anything that reaches
+    /// outside is not drawn.
+    /// </summary>
+    internal static bool IsConfinedToTaskbar(PixelRect placement, PixelRect taskbar)
+        => placement.Width > 0
+            && placement.Height > 0
+            && placement.Left >= taskbar.Left
+            && placement.Right <= taskbar.Right
+            && placement.Top >= taskbar.Top
+            && placement.Bottom <= taskbar.Bottom;
 
     /// <summary>
     /// The anti-flicker rule: push a frame only when something visible changed.

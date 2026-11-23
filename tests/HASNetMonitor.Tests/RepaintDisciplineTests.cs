@@ -175,15 +175,22 @@ public class RepaintDisciplineTests
     }
 
     [Fact]
-    public void TheFramePathNeverHidesTheWidget()
+    public void TheTransientLocateFailureKeepsTheLastFrame()
     {
-        // Hiding it whenever the taskbar could not be located for one tick - which
-        // happens during explorer restarts and display or DPI changes - is what made
-        // the widget blink away and come back. It must keep its last frame instead.
+        // Hiding the widget because the taskbar could not be located for one tick - which
+        // happens during explorer restarts and display or DPI changes - is what made it
+        // blink away and come back. Only that path keeps its last frame.
         string render = SourceText.ExtractMethod("UI", "TaskbarWidget.cs", "private void Render()");
 
-        Assert.DoesNotContain("HideIfShown", render, StringComparison.Ordinal);
-        Assert.DoesNotContain("ShowWindow", render, StringComparison.Ordinal);
+        int locate = render.IndexOf("TryLocate(out TaskbarSnapshot snapshot)", StringComparison.Ordinal);
+        Assert.True(locate >= 0, "the transient locate failure branch is gone");
+
+        int branchEnd = render.IndexOf("return;", locate, StringComparison.Ordinal);
+        Assert.True(branchEnd > locate, "locate branch has no return");
+
+        string transientBranch = render[locate..branchEnd];
+        Assert.DoesNotContain("HideIfShown", transientBranch, StringComparison.Ordinal);
+        Assert.DoesNotContain("ShowWindow", transientBranch, StringComparison.Ordinal);
     }
 
     [Fact]
