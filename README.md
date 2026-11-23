@@ -244,7 +244,7 @@ dotnet publish HASNetMonitor.csproj -c Release -f net48 -o publish
 & "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" installer\HASNetMonitor.iss
 ```
 
-That writes `installer\Output\HASNetMonitor-Setup-1.1.0.exe` — the same per-user,
+That writes `installer\Output\HASNetMonitor-Setup-1.5.0.exe` — the same per-user,
 no-admin, no-runtime-download installer the releases carry.
 
 The compile line above is PowerShell syntax: `$env:LOCALAPPDATA` does not exist in

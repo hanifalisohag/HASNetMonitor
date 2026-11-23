@@ -16,7 +16,7 @@
     <AssemblyName>HASNetMonitor</AssemblyName>
     <!-- The version shown in the About box and in the exe's file properties.
          Core/AppInfo.cs reads it back from the assembly. -->
-    <Version>1.4.0</Version>
+    <Version>1.5.0</Version>
     <Product>HAS NetMonitor</Product>
     <Authors>Md Hanif Ali Sohag</Authors>
     <Company>Md Hanif Ali Sohag</Company>
