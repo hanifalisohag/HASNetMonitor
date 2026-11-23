@@ -4,8 +4,8 @@ namespace HASNetMonitor.Tests;
 
 /// <summary>
 /// The three shipping artefacts the request asked for: the Inno Setup script that bundles
-/// the net48 publish output, the GitHub Actions workflow that builds it on every push to
-/// main, and the uninstall prompt that deletes config.json only when its box is ticked.
+/// the net48 publish output, the GitHub Actions workflow that builds it when the version
+/// changes, and the uninstall prompt that deletes config.json only when its box is ticked.
 /// None of these are reachable from a test run, so the rules are asserted against the
 /// sources themselves.
 /// </summary>
@@ -133,6 +133,31 @@ public class InstallerAndWorkflowTests
         Assert.True(
             workflow.Contains("runs-on: windows", StringComparison.Ordinal),
             $"{fileName} does not use a Windows runner, so Inno Setup cannot run");
+
+        AssertScriptMatchesApp();
+    }
+
+    [Fact]
+    public void TheWorkflowReleasesOnlyWhenTheVersionChanges()
+    {
+        // A commit that does not bump <Version> must not rebuild and re-upload the same
+        // Setup. The build job is gated on a version check that compares the project
+        // version against the release tag v<version>.
+        string workflow = Workflow(out _);
+
+        // The gate reads the version and asks whether that tag is already released.
+        Assert.Contains("gh release view \"v$version\"", workflow, StringComparison.Ordinal);
+        Assert.Contains("changed=false", workflow, StringComparison.Ordinal);
+        Assert.Contains("changed=true", workflow, StringComparison.Ordinal);
+
+        // The build job depends on the gate and runs only when the version is new.
+        Assert.Contains("needs: version", workflow, StringComparison.Ordinal);
+        Assert.Contains("if: needs.version.outputs.changed == 'true'", workflow, StringComparison.Ordinal);
+
+        // The gate must not be the job that builds: it runs on a cheap runner.
+        int gateAt = workflow.IndexOf("version:", StringComparison.Ordinal);
+        int installerAt = workflow.IndexOf("installer:", StringComparison.Ordinal);
+        Assert.True(gateAt >= 0 && installerAt > gateAt, "the version gate is not declared before the build job");
 
         AssertScriptMatchesApp();
     }

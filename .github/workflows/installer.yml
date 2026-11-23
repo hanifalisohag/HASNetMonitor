@@ -1,7 +1,9 @@
 name: Installer
 
-# Every push to main produces a Setup exe, so a release never depends on someone
-# remembering to run the two commands in installer/HASNetMonitor.iss by hand.
+# A release is cut only when the version changes, so a commit that does not bump
+# <Version> in HASNetMonitor.csproj runs the cheap version check and stops there
+# instead of rebuilding the Setup and re-uploading the same asset. Bump the version
+# to ship; the tag v<version> is what marks a version as already released.
 on:
   push:
     branches: [main]
@@ -12,7 +14,42 @@ permissions:
   contents: write
 
 jobs:
+  # Reads the one source of version truth and asks whether that version is already
+  # out. Runs on Linux because it only parses XML and calls gh - no Windows needed.
+  version:
+    runs-on: ubuntu-latest
+    outputs:
+      changed: ${{ steps.check.outputs.changed }}
+      version: ${{ steps.check.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Is this version already released?
+        id: check
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $xml = [xml](Get-Content -Raw HASNetMonitor.csproj)
+          $version = ($xml.Project.PropertyGroup.Version | Where-Object { $_ } | Select-Object -First 1).Trim()
+          if (-not $version) { throw 'HASNetMonitor.csproj has no <Version>' }
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+
+          # A tag v<version> means this exact version already shipped. gh exits non-zero
+          # when the tag is absent, which is the case that should build.
+          gh release view "v$version" --json tagName *> $null
+          if ($LASTEXITCODE -eq 0) {
+            Write-Host "v$version is already released; nothing to build"
+            "changed=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          }
+          else {
+            Write-Host "v$version is new; building it"
+            "changed=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+          }
+
   installer:
+    needs: version
+    if: needs.version.outputs.changed == 'true'
     runs-on: windows-2025
     steps:
       - uses: actions/checkout@v4
@@ -23,7 +60,8 @@ jobs:
           dotnet-version: '11.0.x'
 
       # The version baked into the Setup file name and the wizard comes from the one
-      # place the app reads it: <Version> in HASNetMonitor.csproj.
+      # place the app reads it: <Version> in HASNetMonitor.csproj. The gate job already
+      # read it; this job reads it again so the build does not depend on job outputs.
       - name: Read version from the project file
         shell: pwsh
         run: |
@@ -115,9 +153,9 @@ jobs:
           $notesFile = Join-Path $env:RUNNER_TEMP 'release-notes.md'
           Set-Content -Path $notesFile -Value $notes -Encoding utf8
 
-          # Every push to main ships the version in the csproj, so a second push without a
-          # version bump lands on the same tag. Replacing the asset keeps that a no-op
-          # failure mode instead of a red build a human has to clear by hand.
+          # The gate job only lets a new version through, so this normally creates the
+          # release. A manual workflow_dispatch can still re-run an already-released
+          # version; replacing the asset keeps that a no-op instead of a red build.
           gh release view $tag --json tagName *> $null
           if ($LASTEXITCODE -eq 0) {
             Write-Host "release $tag exists; replacing its asset"

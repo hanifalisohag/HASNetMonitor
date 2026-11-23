@@ -100,8 +100,8 @@ style, so the glassy look is a toggle rather than a style of its own.
 Get the Setup exe from the [latest release](https://github.com/hanifalisohag/HASNetMonitor/releases/latest):
 
 `HASNetMonitor-Setup-<version>.exe` — one file, per-user, no admin rights, no runtime to
-download. Every push to `main` builds it and publishes it, so the newest release is always
-the current code. All releases are listed on the [releases page](https://github.com/hanifalisohag/HASNetMonitor/releases).
+download. A push to `main` that bumps `<Version>` builds it and publishes it, so the newest
+release is always the current code. All releases are listed on the [releases page](https://github.com/hanifalisohag/HASNetMonitor/releases).
 
 ## Requirements
 
@@ -302,8 +302,9 @@ re-publish after any code change. `installer\config.default.json` and the reposi
 compile uses the version baked into the script; only the workflow passes the one it
 reads from the project file, so pass `/DAppVersion=` too if you bumped `<Version>`.
 
-`.github/workflows/installer.yml` runs these same two steps on every push to `main` and
-publishes the result as the release asset.
+`.github/workflows/installer.yml` runs these same two steps on a push to `main` that bumps
+`<Version>`, and publishes the result as the release asset. A push that leaves the version
+alone runs only the version check and stops, so the same Setup is not rebuilt and re-uploaded.
 
 ## Diagnostics
 
