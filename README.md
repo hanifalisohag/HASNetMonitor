@@ -11,6 +11,8 @@ shell hides or buries it.
 - Ten looks, two stacking orders, selectable font family/size/weight
 - Seven arrow styles, including a drawn bar arrow and no arrow at all
 - Bar and figure colours you pick, or figures that follow their bar
+- A glassy look: translucent tracks and chip pills, on any style
+- System-stats chips with their own colour each, a level ring or bar, and vector icons
 - Position it by distance from the tray, then nudge it left/right/up/down in pixels
 - Settings apply to the live widget as you change them
 - Optional start with Windows (per-user `Run` key, no admin rights needed)
@@ -61,6 +63,31 @@ The figures can follow the taskbar, take their bar's colour, or use a colour you
 Chosen with **Settings → Colours and behaviour → Download/Upload text**:
 
 ![Figure colour modes](imgs/text-colours.png)
+
+### System-stats chips
+
+The optional CPU, RAM, GPU, disk and battery chips sit beside the traffic figures. Each one
+has its own colour (**Settings → Colours and behaviour → Chip colours**), so the chips need not
+share the traffic palette. Each chip's **text** colour is set separately (**Chip text colours**),
+so a chip can have, say, an orange dot with white text. Tick **Text matches chip colour** to use
+one colour for both the chip and its text.
+
+Every colour group has a **Reset** button beside it — bar colours, figure colours, chip colours
+and chip text colours — which clears the group back to its defaults. A chip colour left unset
+follows the built-in palette, and a chip text colour left unset follows the figure colour, so
+resetting never leaves a chip invisible.
+
+Each chip can also show its level, chosen with **Settings → Colours and behaviour → Chip level**:
+
+- **Dot** — the plain marker, as before.
+- **Ring** — the marker becomes a ring filled to the metric's percentage.
+- **Bar** — a thin bar under the chip, filled to the percentage.
+
+The marker itself is chosen with **Settings → Colours and behaviour → Chip marker**: the original
+`C:`/`R:`/`G:` letters, or drawn vector icons (a CPU square, a RAM stick, a GPU card, a disk
+cylinder and a battery). **Chip shape** adds a translucent glass pill behind each chip, and
+**Glass tracks** draws the bar tracks and fills with the same frosted look. Both work with any
+style, so the glassy look is a toggle rather than a style of its own.
 
 ---
 
@@ -343,8 +370,8 @@ plainer baseline the renderer uses.
 | `DownloadTextColorHex`  | `#2ECC71`         | `#RRGGBB`, used when the mode is `Custom`                       |
 | `UploadTextColorMode`   | `Bar`             | as above, for the upload row                                    |
 | `UploadTextColorHex`    | `#E6643C`         | as above                                                        |
-| `BarThicknessPx`        | `4`               | 1–24                                                            |
-| `SegmentGapPx`          | `0`               | 0–12                                                            |
+| `BarThicknessPx`        | `3`               | 1–24                                                            |
+| `SegmentGapPx`          | `1`               | 0–12                                                            |
 | `FontSizePt`            | `10.5`            | 6–20                                                            |
 | `Style`                 | `SidebarSegments` | see below                                                       |
 | `SortOrder`             | `UploadFirst`     | `DownloadFirst`, `UploadFirst`                                  |

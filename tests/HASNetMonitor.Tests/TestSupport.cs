@@ -43,7 +43,9 @@ internal sealed class Frame : IDisposable
         config ??= TestSupport.BarsOnly();
         visual ??= new WidgetVisual(0, 0, 0, 0);
         var renderer = new WidgetRenderer();
-        WidgetLayout layout = renderer.ComputeLayout(config, scale, maxHeight);
+        // The layout reserves the chip block from the same reading the frame draws, so a
+        // visual that carries statistics gets chips and one that does not gets none.
+        WidgetLayout layout = renderer.ComputeLayout(config, scale, maxHeight, visual.Value.Stats);
         Bitmap bitmap = renderer.Render(
             visual.Value,
             config,

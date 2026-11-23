@@ -428,13 +428,15 @@ public class SystemStatsTests
         Assert.True(layout.DownloadText.Right <= layout.Size.Width);
         Assert.True(layout.UploadText.Right <= layout.Size.Width);
 
-        // Chips are centred on the figure rows, like the figures themselves.
-        int textHeight = layout.DownloadText.Height;
-        int chipOffset = Math.Max(0, (textHeight - layout.StatsChipHeight) / 2);
-        int firstRowY = Math.Min(layout.DownloadText.Y, layout.UploadText.Y);
-        int secondRowY = Math.Max(layout.DownloadText.Y, layout.UploadText.Y);
-        Assert.Equal(firstRowY + chipOffset, layout.StatsRowTop);
-        Assert.Equal(secondRowY + chipOffset, layout.StatsRowBottom);
+        // The chips are centred on the whole download/upload block - the figure rows and the
+        // bars under them - so the chip block and the figures share one centre line whatever
+        // the bar thickness.
+        int blockTop = Math.Min(layout.DownloadText.Y, layout.UploadText.Y);
+        int blockBottom = Math.Max(layout.DownloadBar.Bottom, layout.UploadBar.Bottom);
+        int chipBlockHeight = (layout.StatsRowBottom - layout.StatsRowTop) + layout.StatsChipHeight;
+        int expectedChipTop = (int)Math.Round(((blockTop + blockBottom) / 2.0) - (chipBlockHeight / 2.0));
+        Assert.Equal(expectedChipTop, layout.StatsRowTop);
+        Assert.Equal(expectedChipTop + (layout.StatsRowBottom - layout.StatsRowTop), layout.StatsRowBottom);
     }
 
     [Fact]

@@ -68,8 +68,8 @@ public class InitialConfigTests : IDisposable
         Assert.True(c.ShowText);
         Assert.False(c.ShowBackdrop);
         Assert.Equal(255, c.BackdropOpacity);
-        Assert.Equal(4, c.BarThicknessPx);
-        Assert.Equal(0, c.SegmentGapPx);
+        Assert.Equal(3, c.BarThicknessPx);
+        Assert.Equal(1, c.SegmentGapPx);
         Assert.Equal(10.5, c.FontSizePt);
         Assert.Equal(WidgetStyles.SidebarSegments, c.Style);
         Assert.Equal(StackOrder.UploadFirst, c.SortOrder);
@@ -82,6 +82,13 @@ public class InitialConfigTests : IDisposable
         Assert.Equal(150, c.ArrowSizePercent);
         Assert.False(c.CrispText);
         Assert.True(c.StartWithWindows);
+        Assert.True(c.ShowCpu);
+        Assert.False(c.ShowGpu);
+        Assert.True(c.ShowRam);
+        Assert.False(c.ShowDisk);
+        Assert.False(c.ShowBattery);
+        Assert.Equal(ChipIndicators.Bar, c.ChipIndicator);
+        Assert.True(c.ChipTextFollowsChip);
     }
 
     [Fact]
@@ -192,6 +199,44 @@ public class InitialConfigTests : IDisposable
     }
 
     [Fact]
+    public void TheInstallerSeedCarriesTheFirstRunValues()
+    {
+        // The seed is what Setup writes for a new user, so it has to carry the same values
+        // as the first-run preset - not merely parse to a valid config.
+        using var document = JsonDocument.Parse(File.ReadAllText(InstallerConfigPath()));
+        JsonElement root = document.RootElement;
+
+        Assert.Equal(3, root.GetProperty("BarThicknessPx").GetInt32());
+        Assert.Equal(1, root.GetProperty("SegmentGapPx").GetInt32());
+        Assert.Equal("", root.GetProperty("FontFamily").GetString());
+        Assert.False(root.GetProperty("ShowGpu").GetBoolean());
+        Assert.False(root.GetProperty("ShowDisk").GetBoolean());
+        Assert.Equal("Bar", root.GetProperty("ChipIndicator").GetString());
+        Assert.True(root.GetProperty("ChipTextFollowsChip").GetBoolean());
+    }
+
+    [Fact]
+    public void AnUninstalledFontFallsBackToAutomatic()
+    {
+        // A config copied from another machine must still draw: a family that is not
+        // installed is dropped to the automatic taskbar font rather than stored.
+        var config = new MonitorConfig { FontFamily = "No Such Family 12345" };
+
+        config.Normalize();
+
+        Assert.Equal(FontCatalog.Automatic, config.FontFamily);
+    }
+
+    [Fact]
+    public void TheShippedDefaultNamesNoFont()
+    {
+        // The default names no font, so it is already normalised on every machine - with
+        // or without Inter installed.
+        Assert.Equal(FontCatalog.Automatic, MonitorConfig.CreateInitial().FontFamily);
+        Assert.Equal(FontCatalog.Automatic, MonitorConfig.CreateInitial().Normalize().FontFamily);
+    }
+
+    [Fact]
     public void TheInstallerCopyNamesEveryPropertyThePresetHas()
     {
         // A field added to the config later must reach the shipped file too, otherwise a
@@ -242,8 +287,8 @@ public class InitialConfigTests : IDisposable
     [Theory]
     [InlineData("Style", "SidebarSegments")]
     [InlineData("ArrowStyle", "Small")]
-    [InlineData("BarThicknessPx", "4")]
-    [InlineData("SegmentGapPx", "0")]
+    [InlineData("BarThicknessPx", "3")]
+    [InlineData("SegmentGapPx", "1")]
     [InlineData("FontSizePt", "10.5")]
     [InlineData("SortOrder", "UploadFirst")]
     [InlineData("BackdropOpacity", "255")]

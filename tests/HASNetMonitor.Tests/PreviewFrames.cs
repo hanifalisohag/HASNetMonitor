@@ -28,7 +28,13 @@ public class PreviewFrames
         void Shot(string name, MonitorConfig config, WidgetTheme theme, float scale, float down = 86.4f, float up = 21.7f)
         {
             MonitorConfig cfg = config.Normalize();
-            WidgetLayout layout = renderer.ComputeLayout(cfg, scale, 0);
+
+            // A fixed reading so the chip previews show real levels rather than placeholders.
+            var stats = new SystemStatsReading(
+                42.0, 63.0, 27.0, 214_000_000_000,
+                new DiskMonitor.DiskReading("C:", 214_000_000_000, 512_000_000_000),
+                new BatteryMonitor.BatteryReading(true, 76, false));
+            WidgetLayout layout = renderer.ComputeLayout(cfg, scale, 0, stats);
 
             // The renderer fills bars from the ratios, not from the byte counts. The app gets
             // these from AutoScaler; a fixed manual peak keeps the gallery frames reproducible.
@@ -38,7 +44,7 @@ public class PreviewFrames
             double upRatio = Math.Clamp((up * bytesPerMegabit) / peak, 0, 1);
 
             using Bitmap frame = renderer.Render(
-                new WidgetVisual(down * bytesPerMegabit, up * bytesPerMegabit, downRatio, upRatio),
+                new WidgetVisual(down * bytesPerMegabit, up * bytesPerMegabit, downRatio, upRatio, stats),
                 cfg, layout, theme, TaskbarOrientation.Horizontal);
             frame.Save(Path.Combine(outDir, name + ".png"), ImageFormat.Png);
         }
@@ -63,6 +69,33 @@ public class PreviewFrames
         Shot("card_Minimal", Base(WidgetStyles.Minimal, ArrowStyles.None, TextColorModes.Bar, down: "#8AB4F8"), WidgetTheme.Dark, 4f);
         Shot("card_Neon", Base(WidgetStyles.Neon, ArrowStyles.Double, TextColorModes.Custom, down: "#FFD166", up: "#06D6A0"), WidgetTheme.Dark, 4f);
         Shot("card_Dots", Base(WidgetStyles.Dots, ArrowStyles.Small, TextColorModes.Bar, down: "#5BC0BE", up: "#F25F5C"), WidgetTheme.Dark, 4f);
+        MonitorConfig glassCard = Base(WidgetStyles.Bars, ArrowStyles.Classic, TextColorModes.Auto, down: "#7FD1FF", up: "#FFB454");
+        glassCard.GlassMeters = true;
+        Shot("card_Glass", glassCard, WidgetTheme.Dark, 4f);
+
+        // The chips: their own colour each, a level ring, and vector icons.
+        MonitorConfig ringChips = Base(WidgetStyles.Bars, ArrowStyles.Classic, TextColorModes.Auto);
+        ringChips.ShowCpu = true;
+        ringChips.ShowRam = true;
+        ringChips.ShowGpu = true;
+        ringChips.ShowDisk = true;
+        ringChips.ChipIndicator = ChipIndicators.Ring;
+        ringChips.ChipIcon = ChipIcons.Glyph;
+        ringChips.CpuColorHex = "#FF8A65";
+        ringChips.RamColorHex = "#4DD0E1";
+        ringChips.GpuColorHex = "#B388FF";
+        ringChips.DiskColorHex = "#9CCC65";
+        Shot("chips_ring", ringChips, WidgetTheme.Dark, 4.5f);
+
+        MonitorConfig glassChips = Base(WidgetStyles.Bars, ArrowStyles.Classic, TextColorModes.Auto);
+        glassChips.ShowCpu = true;
+        glassChips.ShowRam = true;
+        glassChips.ShowGpu = true;
+        glassChips.ChipIndicator = ChipIndicators.Bar;
+        glassChips.ChipIcon = ChipIcons.Glyph;
+        glassChips.GlassMeters = true;
+        glassChips.GlassChips = true;
+        Shot("chips_glass", glassChips, WidgetTheme.Dark, 4.5f);
 
         Shot("arrow_Bar", Base(WidgetStyles.Bars, ArrowStyles.Bar, TextColorModes.Auto), WidgetTheme.Dark, 4f);
         Shot("arrow_Classic", Base(WidgetStyles.Bars, ArrowStyles.Classic, TextColorModes.Auto), WidgetTheme.Dark, 4f);

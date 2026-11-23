@@ -30,12 +30,13 @@ internal readonly record struct SystemStatsReading(
 }
 
 /// <summary>
-/// One chip in the statistics block: a dot colour, the text beside it, and the widest
-/// text this chip can ever show. The column is measured against <see cref="MeasureText"/>
-/// rather than <see cref="Text"/> so a value that comes and goes - or a placeholder -
-/// cannot change the widget's width, which would force a new surface every tick.
+/// One chip in the statistics block: a dot colour, the text beside it, the widest text
+/// this chip can ever show, and the metric's level as a 0..1 ratio for the level
+/// indicators. The column is measured against <see cref="MeasureText"/> rather than
+/// <see cref="Text"/> so a value that comes and goes - or a placeholder - cannot change
+/// the widget's width, which would force a new surface every tick.
 /// </summary>
-internal readonly record struct StatsItem(Color Dot, string Text, string MeasureText);
+internal readonly record struct StatsItem(Color Dot, string Text, string MeasureText, double Ratio = 0.0, string Metric = ChipMetrics.Cpu);
 
 /// <summary>
 /// The system's load, read from four independent background samplers. The widget owns
@@ -274,34 +275,52 @@ internal sealed class SystemStats : IDisposable
 
         if (config.ShowCpu)
         {
+            double ratio = double.IsNaN(reading.CpuPercent) ? 0.0 : Numeric.Clamp(reading.CpuPercent, 0.0, 100.0) / 100.0;
             items.Add(new StatsItem(
-                StatsColors.Cpu,
+                config.ChipColor(ChipMetrics.Cpu),
                 double.IsNaN(reading.CpuPercent) ? $"C: {Placeholder}" : $"C: {FormatPercent(reading.CpuPercent)}",
-                "C: 100%"));
+                "C: 100%",
+                ratio,
+                ChipMetrics.Cpu));
         }
 
         if (config.ShowRam)
         {
+            double ratio = double.IsNaN(reading.RamPercent) ? 0.0 : Numeric.Clamp(reading.RamPercent, 0.0, 100.0) / 100.0;
             items.Add(new StatsItem(
-                StatsColors.Ram,
+                config.ChipColor(ChipMetrics.Ram),
                 double.IsNaN(reading.RamPercent) ? $"R: {Placeholder}" : $"R: {FormatPercent(reading.RamPercent)}",
-                "R: 100%"));
+                "R: 100%",
+                ratio,
+                ChipMetrics.Ram));
         }
 
         if (config.ShowGpu)
         {
+            double ratio = reading.GpuPercent is double gpu ? Numeric.Clamp(gpu, 0.0, 100.0) / 100.0 : 0.0;
             items.Add(new StatsItem(
-                StatsColors.Gpu,
-                reading.GpuPercent is double gpu ? $"G: {FormatPercent(gpu)}" : $"G: {Placeholder}",
-                "G: 100%"));
+                config.ChipColor(ChipMetrics.Gpu),
+                reading.GpuPercent is double gpuValue ? $"G: {FormatPercent(gpuValue)}" : $"G: {Placeholder}",
+                "G: 100%",
+                ratio,
+                ChipMetrics.Gpu));
         }
 
         if (config.ShowBattery && reading.Battery.IsKnown && reading.Battery.OnBattery)
         {
-            Color batteryDot = reading.Battery.Charging || reading.Battery.Percent >= 20
-                ? StatsColors.BatteryCharging
-                : StatsColors.BatteryLow;
-            items.Add(new StatsItem(batteryDot, $"B: {reading.Battery.Percent}%", "B: 100%"));
+            // The battery keeps its low/charging palette colours unless the user picked one,
+            // because the colour is the warning here, not decoration.
+            Color batteryDot = config.ChipColorHex(ChipMetrics.Battery).Length > 0
+                ? config.ChipColor(ChipMetrics.Battery)
+                : reading.Battery.Charging || reading.Battery.Percent >= 20
+                    ? StatsColors.BatteryCharging
+                    : StatsColors.BatteryLow;
+            items.Add(new StatsItem(
+                batteryDot,
+                $"B: {reading.Battery.Percent}%",
+                "B: 100%",
+                Numeric.Clamp(reading.Battery.Percent, 0, 100) / 100.0,
+                ChipMetrics.Battery));
         }
 
         if (config.ShowDisk)
@@ -310,11 +329,16 @@ internal sealed class SystemStats : IDisposable
             {
                 long used = Math.Max(0, reading.Disk.TotalBytes - reading.Disk.FreeBytes);
                 double usage = 100.0 * used / reading.Disk.TotalBytes;
-                items.Add(new StatsItem(StatsColors.Disk, $"D: {FormatPercent(usage)}", "D: 100%"));
+                items.Add(new StatsItem(
+                    config.ChipColor(ChipMetrics.Disk),
+                    $"D: {FormatPercent(usage)}",
+                    "D: 100%",
+                    Numeric.Clamp(usage, 0.0, 100.0) / 100.0,
+                    ChipMetrics.Disk));
             }
             else
             {
-                items.Add(new StatsItem(StatsColors.Disk, $"D: {Placeholder}", "D: 100%"));
+                items.Add(new StatsItem(config.ChipColor(ChipMetrics.Disk), $"D: {Placeholder}", "D: 100%", 0.0, ChipMetrics.Disk));
             }
         }
 

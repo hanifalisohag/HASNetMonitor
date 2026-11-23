@@ -42,6 +42,18 @@ internal sealed class SettingsForm : Form
     private readonly CheckBox _showRam;
     private readonly CheckBox _showDisk;
     private readonly CheckBox _showBattery;
+    private readonly ComboBox _chipIndicator;
+    private readonly ComboBox _chipIcon;
+    private readonly CheckBox _glassChips;
+    private readonly CheckBox _glassMeters;
+    private readonly CheckBox _chipTextFollowsChip;
+    private readonly Dictionary<string, Button> _chipColorButtons = new(StringComparer.Ordinal);
+    private readonly Dictionary<string, Button> _chipTextColorButtons = new(StringComparer.Ordinal);
+    private readonly Button _resetBarColors;
+    private readonly Button _resetDownloadText;
+    private readonly Button _resetUploadText;
+    private readonly Button _resetChipColors;
+    private readonly Button _resetChipTextColors;
     private readonly CheckBox _bold;
     private readonly CheckBox _italic;
     private readonly CheckBox _roundedBars;
@@ -131,15 +143,17 @@ internal sealed class SettingsForm : Form
         ShowInTaskbar = false;
         AutoSize = true;
         AutoSizeMode = AutoSizeMode.GrowAndShrink;
-        Padding = new Padding(10, 8, 10, 6);
+        Padding = new Padding(10, 8, 10, 7);
         Font = new Font("Segoe UI", 9f);
 
         // The dialog is taller than a 768 px netbook screen once the preset row is in.
-        // Capping the height and scrolling keeps OK reachable: a fixed dialog that cannot
-        // shrink would hide its own buttons on such a screen. The groups are laid out in two
-        // short columns so the whole form, Reset nudges included, fits above the footer
-        // without needing that scroll. The retained height rule is 740 px, so that is the cap.
-        AutoScroll = true;
+        // Capping the height keeps OK reachable: a fixed dialog that cannot shrink would
+        // hide its own buttons on such a screen. The groups are laid out in two short
+        // columns so the whole form, Reset nudges included, fits above the footer without
+        // needing to scroll. The retained height rule is 740 px, so that is the cap.
+        // AutoScroll is deliberately off: with it on, AutoSize stops growing the form to
+        // its content, which left the client a few pixels shorter than the root table and
+        // pushed the footer past the visible edge.
         MaximumSize = new Size(1100, 740);
 
         _downloadColorButton = CreateColorButton("Download bar colour");
@@ -249,6 +263,51 @@ internal sealed class SettingsForm : Form
         _showDisk = new CheckBox { Text = "Disk", Checked = config.ShowDisk, AutoSize = true };
         _showBattery = new CheckBox { Text = "Battery (when on battery)", Checked = config.ShowBattery, AutoSize = true };
 
+        _chipIndicator = CreateChoiceBox(
+        [
+            new Choice(ChipIndicators.None, ChipIndicators.Describe(ChipIndicators.None)),
+            new Choice(ChipIndicators.Ring, ChipIndicators.Describe(ChipIndicators.Ring)),
+            new Choice(ChipIndicators.Bar, ChipIndicators.Describe(ChipIndicators.Bar)),
+        ], ChipIndicators.Normalize(config.ChipIndicator));
+
+        _chipIcon = CreateChoiceBox(
+        [
+            new Choice(ChipIcons.Letter, ChipIcons.Describe(ChipIcons.Letter)),
+            new Choice(ChipIcons.Glyph, ChipIcons.Describe(ChipIcons.Glyph)),
+        ], ChipIcons.Normalize(config.ChipIcon));
+
+        _glassChips = new CheckBox { Text = "Glass chip pills", Checked = config.GlassChips, AutoSize = true };
+        _glassMeters = new CheckBox { Text = "Glass tracks", Checked = config.GlassMeters, AutoSize = true };
+        _chipTextFollowsChip = new CheckBox
+        {
+            Text = "Text matches chip colour",
+            Checked = config.ChipTextFollowsChip,
+            AutoSize = true,
+            AccessibleDescription = "Draw each chip's text in that chip's own colour, so one colour covers both.",
+        };
+
+        // The two chip pickers share one row, so they are narrower than the full-width combos
+        // the other rows use.
+        _chipIndicator.Width = 150;
+        _chipIcon.Width = 150;
+
+        foreach (string metric in ChipMetrics.All)
+        {
+            Button button = CreateChipSwatch($"{ChipMetrics.Describe(metric)} chip colour");
+            button.Click += (_, _) => PickChipColor(metric);
+            _chipColorButtons[metric] = button;
+
+            Button textButton = CreateChipSwatch($"{ChipMetrics.Describe(metric)} chip text colour");
+            textButton.Click += (_, _) => PickChipTextColor(metric);
+            _chipTextColorButtons[metric] = textButton;
+        }
+
+        _resetBarColors = CreateResetButton("Reset both bar colours to their defaults", ResetBarColors);
+        _resetDownloadText = CreateResetButton("Reset the download figure colour to its default", ResetDownloadTextColor);
+        _resetUploadText = CreateResetButton("Reset the upload figure colour to its default", ResetUploadTextColor);
+        _resetChipColors = CreateResetButton("Reset every chip colour to its palette default", ResetChipColors);
+        _resetChipTextColors = CreateResetButton("Reset every chip text colour to follow the figure colour", ResetChipTextColors);
+
         List<Choice> styleChoices = [];
         foreach (string style in WidgetStyles.All)
         {
@@ -339,22 +398,8 @@ internal sealed class SettingsForm : Form
         AddRow(look, "Text:", _showText);
         AddRow(look, "Sharpness:", _crispText);
 
-        var colours = CreateGroup("Colours and behaviour");
-        AddRow(colours, "Download colour:", _downloadColorButton);
-        AddRow(colours, "Upload colour:", _uploadColorButton);
-        AddRow(colours, "Download text:", Combine(_downloadTextMode, _downloadTextColorButton));
-        AddRow(colours, "Upload text:", Combine(_uploadTextMode, _uploadTextColorButton));
-        AddRow(colours, "Refresh (ms):", _interval);
-        AddRow(colours, "Scaling:", _autoScale);
-        AddRow(colours, "Bar scale:", _sharedScale);
-        AddRow(colours, "Max scale (Mbps):", _maxScale);
-        AddRow(colours, "Appearance:", _showBackdrop);
-        AddRow(colours, "Tint opacity:", _backdropOpacity);
-        AddRow(colours, "Start-up:", _startWithWindows);
-
-        // The widget-chip checkboxes, laid out side by side in a bare row in the Colours
-        // column. They carry their own captions, so a group caption would repeat what the
-        // chips already say.
+        // The widget-chip checkboxes, laid out side by side. They carry their own captions, so
+        // a group caption would repeat what the chips already say.
         var statsChips = new FlowLayoutPanel
         {
             FlowDirection = FlowDirection.LeftToRight,
@@ -369,6 +414,30 @@ internal sealed class SettingsForm : Form
         statsChips.Controls.Add(_showDisk);
         statsChips.Controls.Add(_showBattery);
 
+        var colours = CreateGroup("Colours and behaviour");
+        AddRow(colours, "Bar colours:", Combine(_downloadColorButton, _uploadColorButton, _resetBarColors));
+        AddRow(colours, "Download text:", Combine(_downloadTextMode, _downloadTextColorButton, _resetDownloadText));
+        AddRow(colours, "Upload text:", Combine(_uploadTextMode, _uploadTextColorButton, _resetUploadText));
+        AddRow(colours, "Chip colours:", Combine(
+            _chipColorButtons[ChipMetrics.Cpu],
+            _chipColorButtons[ChipMetrics.Ram],
+            _chipColorButtons[ChipMetrics.Gpu],
+            _chipColorButtons[ChipMetrics.Disk],
+            _chipColorButtons[ChipMetrics.Battery],
+            _resetChipColors));
+        AddRow(colours, "Chip text:", Combine(
+            _chipTextColorButtons[ChipMetrics.Cpu],
+            _chipTextColorButtons[ChipMetrics.Ram],
+            _chipTextColorButtons[ChipMetrics.Gpu],
+            _chipTextColorButtons[ChipMetrics.Disk],
+            _chipTextColorButtons[ChipMetrics.Battery],
+            _resetChipTextColors));
+        AddRow(colours, "Refresh (ms):", Combine(_interval, _autoScale));
+        AddRow(colours, "Scale:", Combine(_sharedScale, _maxScale));
+        AddRow(colours, "Appearance:", Combine(_showBackdrop, _backdropOpacity, _startWithWindows));
+        AddRow(colours, "Chip level / marker:", Combine(_chipIndicator, _chipIcon));
+        AddRow(colours, "Chip shape:", Combine(_glassChips, _glassMeters, _chipTextFollowsChip));
+        AddRow(colours, "Show chips:", statsChips);
         var columns = new TableLayoutPanel
         {
             ColumnCount = 2,
@@ -392,10 +461,6 @@ internal sealed class SettingsForm : Form
         columns.Controls.Add(position, 1, 0);
         columns.Controls.Add(look, 0, 1);
         columns.Controls.Add(colours, 1, 1);
-        // The widget-chip row sits in the Colours column, which is a row shorter than the
-        // Look column, so the chips do not stretch the form past the cap the footer rule
-        // names.
-        columns.Controls.Add(statsChips, 1, 2);
 
         var buttons = new FlowLayoutPanel
         {
@@ -404,18 +469,20 @@ internal sealed class SettingsForm : Form
             Dock = DockStyle.Fill,
             // A bottom margin as well as the top one: hugging the table's edge put the last
             // pixels of OK outside the visible client area.
-            Margin = new Padding(0, 4, 0, 4),
+            Margin = new Padding(0, 4, 0, 0),
         };
 
-        var ok = new Button { Text = "OK", DialogResult = DialogResult.OK, AutoSize = true, MinimumSize = new Size(80, 26) };
-        var cancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, AutoSize = true, MinimumSize = new Size(80, 26) };
+        var ok = new Button { Text = "OK", DialogResult = DialogResult.OK, AutoSize = true, MinimumSize = new Size(80, 26), Margin = new Padding(3, 0, 0, 0) };
+        var cancel = new Button { Text = "Cancel", DialogResult = DialogResult.Cancel, AutoSize = true, MinimumSize = new Size(80, 26), Margin = new Padding(3, 0, 0, 0) };
         buttons.Controls.Add(ok);
         buttons.Controls.Add(cancel);
 
         // The root sizes the form (Dock=None) rather than filling it: docked inside a
         // form that is capped by MaximumSize, the table's client area came out a few pixels
         // narrower than its own children, which pushed OK past the visible edge.
-        var root = new TableLayoutPanel { ColumnCount = 1, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink };
+        var root = new TableLayoutPanel { ColumnCount = 1, RowCount = 2, AutoSize = true, AutoSizeMode = AutoSizeMode.GrowAndShrink, Margin = Padding.Empty };
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
+        root.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         root.Controls.Add(columns);
         root.Controls.Add(buttons);
         Controls.Add(root);
@@ -423,14 +490,16 @@ internal sealed class SettingsForm : Form
         AcceptButton = ok;
         CancelButton = cancel;
 
-        SetColor(_downloadColorButton, config.DownloadColorHex);
-        SetColor(_uploadColorButton, config.UploadColorHex);
-        SetColor(_downloadTextColorButton, config.DownloadTextColorHex);
-        SetColor(_uploadTextColorButton, config.UploadTextColorHex);
         _downloadTextColorButton.Click += (_, _) => PickColor(_downloadTextColorButton);
         _uploadTextColorButton.Click += (_, _) => PickColor(_uploadTextColorButton);
 
         ok.Click += (_, _) => ApplyDialogResult();
+
+        // Fill every control from the config, including the chip swatches, which the
+        // constructor's own initialisers do not cover. Without this the chip swatches keep
+        // the stock control colour and read as "no colour" whatever the config says. This
+        // runs before the crisp coupling so the coupling has the last word on the tint.
+        FillControls(config);
 
         // Crisping means an opaque plate, so the tint controls follow it rather than
         // silently disagreeing with what the renderer does. Registered before the live
@@ -445,6 +514,7 @@ internal sealed class SettingsForm : Form
             _fontSize, _nudgeX, _nudgeY, _offsetFromTray, _nudgeLeft, _nudgeRight, _nudgeUp, _nudgeDown,
             _resetNudge, _downloadTextMode, _uploadTextMode, _autoScale, _maxScale, _interval,
             _backdropOpacity, _startWithWindows, _showCpu, _showRam, _showGpu, _showDisk, _showBattery,
+            _chipIndicator, _chipIcon, _glassChips, _glassMeters, _chipTextFollowsChip,
         })
         {
             WireForLive(input);
@@ -464,8 +534,15 @@ internal sealed class SettingsForm : Form
         }
 
         SyncPresetLabel();
-    }
 
+        // The form's AutoSize measures the root table before the columns have finished
+        // laying out, which left the client a few pixels shorter than the root and pushed
+        // the footer past the visible edge. A layout pass after every control is populated
+        // makes the form re-measure against the final content, and the minimum height keeps
+        // the client from coming out a pixel short of the root's own bottom edge.
+        PerformLayout();
+        MinimumSize = new Size(0, Height + 2);
+    }
     /// <summary>
     /// Picking a preset replaces the whole look at once and shows it in the controls, so
     /// the user can see what they are about to get and still adjust a single value before
@@ -584,6 +661,11 @@ internal sealed class SettingsForm : Form
         _showGpu.Checked = config.ShowGpu;
         _showDisk.Checked = config.ShowDisk;
         _showBattery.Checked = config.ShowBattery;
+        _chipIndicator.SelectedIndex = IndexOfChoice(_chipIndicator, ChipIndicators.Normalize(config.ChipIndicator));
+        _chipIcon.SelectedIndex = IndexOfChoice(_chipIcon, ChipIcons.Normalize(config.ChipIcon));
+        _glassChips.Checked = config.GlassChips;
+        _glassMeters.Checked = config.GlassMeters;
+        _chipTextFollowsChip.Checked = config.ChipTextFollowsChip;
 
         // Crisp text forces an opaque plate (ApplyCrispCoupling), so it is set before the
         // tint is, otherwise switching crisp text off would leave the previous preset's
@@ -596,6 +678,24 @@ internal sealed class SettingsForm : Form
         SetColor(_uploadColorButton, config.UploadColorHex);
         SetColor(_downloadTextColorButton, config.DownloadTextColorHex);
         SetColor(_uploadTextColorButton, config.UploadTextColorHex);
+
+        // An unset chip colour shows the palette colour the chip actually draws with, so
+        // the button never reads as black when the chip is orange.
+        Color textFallback = ColorHelper.Parse(MonitorConfig.DefaultTextColor, Color.White);
+        foreach (string metric in ChipMetrics.All)
+        {
+            SetChipSwatch(
+                _chipColorButtons[metric],
+                ChipMetrics.Letter(metric),
+                config.ChipColorHex(metric),
+                ChipMetrics.Default(metric));
+
+            SetChipSwatch(
+                _chipTextColorButtons[metric],
+                ChipMetrics.Letter(metric),
+                config.ChipTextColorHex(metric),
+                textFallback);
+        }
 
         _downloadTextMode.SelectedIndex = IndexOfChoice(_downloadTextMode, TextColorModes.Normalize(config.DownloadTextColorMode));
         _uploadTextMode.SelectedIndex = IndexOfChoice(_uploadTextMode, TextColorModes.Normalize(config.UploadTextColorMode));
@@ -928,8 +1028,38 @@ internal sealed class SettingsForm : Form
             ShowGpu = _showGpu.Checked,
             ShowDisk = _showDisk.Checked,
             ShowBattery = _showBattery.Checked,
+            ChipIndicator = SelectedKey(_chipIndicator, ChipIndicators.None),
+            ChipIcon = SelectedKey(_chipIcon, ChipIcons.Letter),
+            GlassChips = _glassChips.Checked,
+            GlassMeters = _glassMeters.Checked,
+            ChipTextFollowsChip = _chipTextFollowsChip.Checked,
+            CpuColorHex = ChipColorFromButton(ChipMetrics.Cpu),
+            RamColorHex = ChipColorFromButton(ChipMetrics.Ram),
+            GpuColorHex = ChipColorFromButton(ChipMetrics.Gpu),
+            DiskColorHex = ChipColorFromButton(ChipMetrics.Disk),
+            BatteryColorHex = ChipColorFromButton(ChipMetrics.Battery),
+            CpuTextColorHex = ChipTextColorFromButton(ChipMetrics.Cpu),
+            RamTextColorHex = ChipTextColorFromButton(ChipMetrics.Ram),
+            GpuTextColorHex = ChipTextColorFromButton(ChipMetrics.Gpu),
+            DiskTextColorHex = ChipTextColorFromButton(ChipMetrics.Disk),
+            BatteryTextColorHex = ChipTextColorFromButton(ChipMetrics.Battery),
         }.Normalize();
     }
+
+    /// <summary>
+    /// The chip colour the user picked, or empty when the button still shows the palette
+    /// colour - so an untouched dialog keeps the chip on the palette rather than freezing
+    /// today's default into the config.
+    /// </summary>
+    private string ChipColorFromButton(string metric) =>
+        _chipColorButtons[metric].Tag as string ?? string.Empty;
+
+    /// <summary>
+    /// The chip text colour the user picked, or empty when the text still follows the
+    /// widget's figure colour.
+    /// </summary>
+    private string ChipTextColorFromButton(string metric) =>
+        _chipTextColorButtons[metric].Tag as string ?? string.Empty;
 
     private void WireForLive(Control input)
     {
@@ -1234,6 +1364,25 @@ internal sealed class SettingsForm : Form
         return button;
     }
 
+    /// <summary>
+    /// A compact colour swatch for one chip. Five of these share a single row, so each is a
+    /// small square carrying the metric's letter rather than a full-width hex button.
+    /// </summary>
+    private static Button CreateChipSwatch(string accessibleName)
+    {
+        var button = new Button
+        {
+            Text = string.Empty,
+            AutoSize = false,
+            Size = new Size(30, 26),
+            FlatStyle = FlatStyle.Flat,
+            UseVisualStyleBackColor = false,
+            AccessibleName = accessibleName,
+        };
+        button.FlatAppearance.BorderColor = Color.FromArgb(120, 120, 120);
+        return button;
+    }
+
     private void PickColor(Button button)
     {
         using var dialog = new ColorDialog
@@ -1250,12 +1399,132 @@ internal sealed class SettingsForm : Form
         }
     }
 
+    /// <summary>
+    /// Picks one chip's colour. The button starts on the palette colour for that metric,
+    /// so opening the dialog shows what the chip looks like now rather than black.
+    /// </summary>
+    private void PickChipColor(string metric)
+    {
+        Button button = _chipColorButtons[metric];
+        using var dialog = new ColorDialog
+        {
+            FullOpen = true,
+            AnyColor = true,
+            Color = ColorHelper.Parse(button.Tag as string, ChipMetrics.Default(metric)),
+        };
+
+        if (dialog.ShowDialog() == DialogResult.OK)
+        {
+            SetChipSwatch(button, ChipMetrics.Letter(metric), ColorHelper.ToHex(dialog.Color), ChipMetrics.Default(metric));
+            PublishLive();
+        }
+    }
+
+    /// <summary>
+    /// Picks one chip's text colour. The button starts on the colour the chip's text is
+    /// drawn in now, so opening the dialog shows the current look rather than black.
+    /// </summary>
+    private void PickChipTextColor(string metric)
+    {
+        Button button = _chipTextColorButtons[metric];
+        using var dialog = new ColorDialog
+        {
+            FullOpen = true,
+            AnyColor = true,
+            Color = ColorHelper.Parse(button.Tag as string, ColorHelper.Parse(MonitorConfig.DefaultTextColor, Color.White)),
+        };
+
+        if (dialog.ShowDialog() == DialogResult.OK)
+        {
+            SetChipSwatch(button, ChipMetrics.Letter(metric), ColorHelper.ToHex(dialog.Color), ColorHelper.Parse(MonitorConfig.DefaultTextColor, Color.White));
+            PublishLive();
+        }
+    }
+
+    /// <summary>A small "Reset" button that restores one group of colours to its defaults.</summary>
+    private static Button CreateResetButton(string description, Action onClick)
+    {
+        var button = new Button
+        {
+            Text = "Reset",
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            AccessibleName = "Reset",
+            AccessibleDescription = description,
+        };
+        button.Click += (_, _) => onClick();
+        return button;
+    }
+
+    /// <summary>Restores both bar colours to the config's default bar colours.</summary>
+    private void ResetBarColors()
+    {
+        SetColor(_downloadColorButton, MonitorConfig.DefaultDownloadColor);
+        SetColor(_uploadColorButton, MonitorConfig.DefaultUploadColor);
+        PublishLive();
+    }
+
+    /// <summary>Restores the download figure colour to the default figure colour.</summary>
+    private void ResetDownloadTextColor()
+    {
+        SetColor(_downloadTextColorButton, MonitorConfig.DefaultTextColor);
+        PublishLive();
+    }
+
+    /// <summary>Restores the upload figure colour to the default figure colour.</summary>
+    private void ResetUploadTextColor()
+    {
+        SetColor(_uploadTextColorButton, MonitorConfig.DefaultTextColor);
+        PublishLive();
+    }
+
+    /// <summary>Clears every chip colour, so each chip falls back to its palette colour.</summary>
+    private void ResetChipColors()
+    {
+        foreach (string metric in ChipMetrics.All)
+        {
+            SetChipSwatch(_chipColorButtons[metric], ChipMetrics.Letter(metric), string.Empty, ChipMetrics.Default(metric));
+        }
+
+        PublishLive();
+    }
+
+    /// <summary>Clears every chip text colour, so each chip's text follows the figure colour.</summary>
+    private void ResetChipTextColors()
+    {
+        Color fallback = ColorHelper.Parse(MonitorConfig.DefaultTextColor, Color.White);
+        foreach (string metric in ChipMetrics.All)
+        {
+            SetChipSwatch(_chipTextColorButtons[metric], ChipMetrics.Letter(metric), string.Empty, fallback);
+        }
+
+        PublishLive();
+    }
+
     private static void SetColor(Button button, string hex)
     {
         string normalized = ColorHelper.ToHex(ColorHelper.Parse(hex, Color.FromArgb(46, 204, 113)));
         button.Tag = normalized;
         button.Text = normalized;
         Color color = ColorHelper.Parse(normalized, Color.Black);
+        button.BackColor = color;
+        button.ForeColor = color.GetBrightness() > 0.55 ? Color.Black : Color.White;
+    }
+
+    /// <summary>
+    /// Sets a compact chip swatch. The letter stays as the button's text so the five swatches
+    /// in the row remain tellable apart; the colour is the background. An empty
+    /// <paramref name="hex"/> means "unset": the swatch shows <paramref name="fallback"/>
+    /// (the colour the chip actually draws with) and stores empty, so the config keeps
+    /// falling back to the palette instead of freezing today's default.
+    /// </summary>
+    private static void SetChipSwatch(Button button, string letter, string hex, Color fallback)
+    {
+        bool unset = string.IsNullOrWhiteSpace(hex);
+        string stored = unset ? string.Empty : ColorHelper.ToHex(ColorHelper.Parse(hex, fallback));
+        button.Tag = stored;
+        button.Text = letter;
+        Color color = unset ? fallback : ColorHelper.Parse(stored, fallback);
         button.BackColor = color;
         button.ForeColor = color.GetBrightness() > 0.55 ? Color.Black : Color.White;
     }

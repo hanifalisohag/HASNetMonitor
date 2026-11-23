@@ -86,6 +86,9 @@ internal readonly record struct WidgetLayout(
     /// <summary>Height of one chip line in whole pixels; the chip font is built from the same em size.</summary>
     public int StatsChipHeight { get; init; } = 0;
 
+    /// <summary>Side of a chip's marker (dot, ring or glyph) in whole pixels.</summary>
+    public int StatsDotSize { get; init; } = 0;
+
     /// <summary>Y of the line the first-row chips are painted on, in the widget's own coordinates.</summary>
     public int StatsRowTop { get; init; } = 0;
 
@@ -229,7 +232,10 @@ internal sealed class WidgetRenderer
         int chipColumnGap = Math.Max(2, (int)Math.Round(2.5f * scale));
         int chipTextGap = Math.Max(2, (int)Math.Round(3 * scale));
         int chipGapAfterDot = Math.Max(1, (int)Math.Round(2 * scale));
-        int chipDotPx = Math.Max(3, (int)Math.Round(4 * scale));
+        // An odd side keeps the marker centred on a whole pixel: an even side at a
+        // half-pixel offset anti-aliases a filled dot into a hollow ring, which reads as a
+        // distorted, non-square blob at some font sizes.
+        int chipDotPx = Math.Max(3, (int)Math.Round(4 * scale) | 1);
 
         for (int attempt = 0; ; attempt++)
         {
@@ -340,17 +346,21 @@ internal sealed class WidgetRenderer
                     barThickness, barGap, reportedPoints, paddingX, paddingY, rowGap, scale, maxHeightPx,
                     textLeft);
 
-            // The chips are centred on the two figure text rows, beside the figures,
-            // one column every two items and at most two chips per column.
+            // The chips are centred on the whole download/upload block - the two figure rows
+            // and the bars under them - not on the figure text alone. Centring on the text
+            // left the chip block sitting above the block's centre by half the bar height,
+            // and the gap grew with the bar thickness.
             int chipRow0Y = 0;
             int chipRow1Y = 0;
             if (showChips)
             {
                 int firstRowY = Math.Min(layout.DownloadText.Y, layout.UploadText.Y);
                 int secondRowY = Math.Max(layout.DownloadText.Y, layout.UploadText.Y);
-                int chipOffset = Math.Max(0, (textHeight - chipHeight) / 2);
-                chipRow0Y = firstRowY + chipOffset;
-                chipRow1Y = secondRowY + chipOffset;
+                int blockTop = firstRowY;
+                int blockBottom = Math.Max(layout.DownloadBar.Bottom, layout.UploadBar.Bottom);
+                int chipBlockHeight = (secondRowY - firstRowY) + chipHeight;
+                chipRow0Y = (int)Math.Round(((blockTop + blockBottom) / 2.0) - (chipBlockHeight / 2.0));
+                chipRow1Y = chipRow0Y + (secondRowY - firstRowY);
             }
 
             return layout with
@@ -361,6 +371,7 @@ internal sealed class WidgetRenderer
                 ArrowStyle = ArrowStyles.Normalize(config.ArrowStyle),
                 StatsColumns = showChips ? columnX.Length : 0,
                 StatsChipHeight = chipHeight,
+                StatsDotSize = Math.Max(3, (int)Math.Round(4 * scale) | 1),
                 StatsRowTop = chipRow0Y,
                 StatsRowBottom = chipRow1Y,
                 StatsColumnX = columnX,
@@ -719,38 +730,45 @@ internal sealed class WidgetRenderer
             graphics.FillPath(backdrop, path);
         }
 
-        switch (layout.Style)
+        if (config.GlassMeters)
         {
-            case WidgetStyles.Level:
-                DrawLevelMeters(graphics, visual, config, layout, theme);
-                break;
-            case WidgetStyles.Sidebar:
-                DrawSidebarMeters(graphics, visual, config, layout, theme);
-                break;
-            case WidgetStyles.Neon:
-                DrawNeonMeters(graphics, visual, config, layout, theme);
-                break;
-            case WidgetStyles.Segments:
-                DrawSegmentMeters(graphics, visual, config, layout, theme, vertical: false);
-                break;
-            case WidgetStyles.SidebarSegments:
-                DrawSegmentMeters(graphics, visual, config, layout, theme, vertical: true);
-                break;
-            case WidgetStyles.Dots:
-                DrawDotMeters(graphics, visual, config, layout, theme);
-                break;
-            case WidgetStyles.Minimal:
-                DrawMinimalMeters(graphics, visual, config, layout, theme);
-                break;
-            case WidgetStyles.Gradient:
-                DrawGradientMeters(graphics, visual, config, layout, theme);
-                break;
-            case WidgetStyles.Outline:
-                DrawOutlineMeters(graphics, visual, config, layout, theme);
-                break;
-            default:
-                DrawSolidMeters(graphics, visual, config, layout, theme);
-                break;
+            DrawGlassMeters(graphics, visual, config, layout, theme);
+        }
+        else
+        {
+            switch (layout.Style)
+            {
+                case WidgetStyles.Level:
+                    DrawLevelMeters(graphics, visual, config, layout, theme);
+                    break;
+                case WidgetStyles.Sidebar:
+                    DrawSidebarMeters(graphics, visual, config, layout, theme);
+                    break;
+                case WidgetStyles.Neon:
+                    DrawNeonMeters(graphics, visual, config, layout, theme);
+                    break;
+                case WidgetStyles.Segments:
+                    DrawSegmentMeters(graphics, visual, config, layout, theme, vertical: false);
+                    break;
+                case WidgetStyles.SidebarSegments:
+                    DrawSegmentMeters(graphics, visual, config, layout, theme, vertical: true);
+                    break;
+                case WidgetStyles.Dots:
+                    DrawDotMeters(graphics, visual, config, layout, theme);
+                    break;
+                case WidgetStyles.Minimal:
+                    DrawMinimalMeters(graphics, visual, config, layout, theme);
+                    break;
+                case WidgetStyles.Gradient:
+                    DrawGradientMeters(graphics, visual, config, layout, theme);
+                    break;
+                case WidgetStyles.Outline:
+                    DrawOutlineMeters(graphics, visual, config, layout, theme);
+                    break;
+                default:
+                    DrawSolidMeters(graphics, visual, config, layout, theme);
+                    break;
+            }
         }
 
         if (!config.ShowText)
@@ -781,10 +799,10 @@ internal sealed class WidgetRenderer
     }
 
     /// <summary>
-    /// Paints the chips on the left of the figures. A chip is a coloured dot and its
-    /// text; dots keep the traffic colours reserved for traffic, so the block reads as
-    /// a distinct layer. Chips sit beside the figures - never under them - and never
-    /// push the traffic out of the bar.
+    /// Paints the chips on the left of the figures. A chip is a coloured marker and its
+    /// text; the marker is a dot, a ring filled to the metric's level, or a glyph icon,
+    /// depending on the config. Chips sit beside the figures - never under them - and
+    /// never push the traffic out of the bar.
     /// </summary>
     private static void DrawChips(
         Graphics graphics,
@@ -802,10 +820,13 @@ internal sealed class WidgetRenderer
 
         using Font statsFont = CreateFont(layout.StatsEmPixels, config);
         float scale = layout.Scale;
-        float dot = Math.Max(3f, (float)Math.Round(4 * scale));
+        float dot = Math.Max(3f, layout.StatsDotSize);
         float gapAfterDot = Math.Max(1f, (float)Math.Round(2 * scale));
 
         float chipHeight = Math.Max(1f, (float)layout.StatsChipHeight);
+        string indicator = ChipIndicators.Normalize(config.ChipIndicator);
+        string icon = ChipIcons.Normalize(config.ChipIcon);
+        bool glassChips = config.EffectiveGlassChips;
 
         for (int i = 0; i < items.Length; i++)
         {
@@ -827,17 +848,232 @@ internal sealed class WidgetRenderer
             }
 
             float chipY = row == 0 ? layout.StatsRowTop : layout.StatsRowBottom;
-            float dotY = chipY + (chipHeight - dot) / 2f;
+            // Snap the marker to a whole pixel: a half-pixel offset anti-aliases the dot
+            // into a hollow ring, which is the distortion seen at some font sizes.
+            float dotY = chipY + (float)Math.Round((chipHeight - dot) / 2f);
 
-            using (var dotBrush = new SolidBrush(items[i].Dot))
+            if (glassChips)
             {
-                graphics.FillEllipse(dotBrush, chipX, dotY, dot, dot);
+                DrawGlassChipPill(graphics, chipX, chipY, chipWidth, chipHeight, scale);
             }
 
-            using (var textBrush = new SolidBrush(textColor))
+            DrawChipMarker(graphics, items[i], chipX, dotY, dot, indicator, icon, scale);
+
+            // A chip's text can carry its own colour; unset means it follows the widget's
+            // figure colour, so the default look is unchanged. The text is centred on its
+            // own ink box, the way the arrow is: the em box is taller than the glyphs, so
+            // em-centring leaves the chip sitting a pixel below the figure's line.
+            Color chipText = config.ChipTextColor(items[i].Metric, textColor);
+            using (var textBrush = new SolidBrush(chipText))
             {
-                graphics.DrawString(items[i].Text, statsFont, textBrush, chipX + dot + gapAfterDot, chipY, format);
+                var chipRow = new Rectangle((int)Math.Floor(chipX), (int)Math.Floor(chipY), (int)Math.Ceiling(chipWidth), (int)Math.Ceiling(chipHeight));
+                float chipTextTop = InkCentredTop(graphics, statsFont, format, items[i].Text, chipRow);
+                graphics.DrawString(items[i].Text, statsFont, textBrush, chipX + dot + gapAfterDot, chipTextTop, format);
             }
+
+            if (indicator == ChipIndicators.Bar)
+            {
+                DrawChipBar(graphics, items[i], chipX, chipY + chipHeight, chipWidth, scale);
+            }
+        }
+    }
+
+    /// <summary>
+    /// A thin bar under a chip's text, filled from the left to the metric's level. It
+    /// sits just below the chip row, so it never overlaps the text or the row beneath.
+    /// </summary>
+    private static void DrawChipBar(Graphics graphics, StatsItem item, float x, float y, float width, float scale)
+    {
+        if (width <= 0)
+        {
+            return;
+        }
+
+        float height = Math.Max(1f, (float)Math.Round(1.5 * scale));
+        var track = new Rectangle((int)Math.Floor(x), (int)Math.Floor(y), (int)Math.Ceiling(width), (int)Math.Ceiling(height));
+        if (track.Width <= 0 || track.Height <= 0)
+        {
+            return;
+        }
+
+        using (var trackBrush = new SolidBrush(Color.FromArgb(RingTrackAlpha, item.Dot)))
+        {
+            graphics.FillRectangle(trackBrush, track);
+        }
+
+        int fillWidth = FillWidth(track.Width, item.Ratio);
+        if (fillWidth > 0)
+        {
+            using var fillBrush = new SolidBrush(item.Dot);
+            graphics.FillRectangle(fillBrush, Slice(track, fillWidth));
+        }
+    }
+
+    /// <summary>
+    /// The marker at the left of a chip: a plain dot, a ring filled to the metric's
+    /// level, or a glyph icon. The ring keeps the dot's footprint, so switching the
+    /// indicator never changes the widget's width.
+    /// </summary>
+    private static void DrawChipMarker(
+        Graphics graphics,
+        StatsItem item,
+        float x,
+        float y,
+        float size,
+        string indicator,
+        string icon,
+        float scale)
+    {
+        if (icon == ChipIcons.Glyph)
+        {
+            DrawChipGlyph(graphics, item.Metric, item.Dot, x, y, size, scale);
+            return;
+        }
+
+        if (indicator == ChipIndicators.Ring)
+        {
+            DrawChipRing(graphics, item.Dot, item.Ratio, x, y, size, scale);
+            return;
+        }
+
+        using var dotBrush = new SolidBrush(item.Dot);
+        graphics.FillEllipse(dotBrush, x, y, size, size);
+    }
+
+    /// <summary>
+    /// A donut filled clockwise from the top to the metric's level, with the unfilled
+    /// part left as a faint ring so the chip still reads as a gauge at 0%.
+    /// </summary>
+    private static void DrawChipRing(Graphics graphics, Color color, double ratio, float x, float y, float size, float scale)
+    {
+        SmoothingMode previous = graphics.SmoothingMode;
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        try
+        {
+            float thickness = Math.Max(1f, (float)Math.Round(1.5 * scale));
+            float inset = thickness / 2f;
+            var bounds = new RectangleF(x + inset, y + inset, Math.Max(1f, size - thickness), Math.Max(1f, size - thickness));
+
+            using (var track = new Pen(Color.FromArgb(RingTrackAlpha, color), thickness))
+            {
+                graphics.DrawEllipse(track, bounds);
+            }
+
+            double sweep = Numeric.Clamp(ratio, 0.0, 1.0) * 360.0;
+            if (sweep <= 0.0)
+            {
+                return;
+            }
+
+            using var fill = new Pen(color, thickness) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+            // GDI+ angles run clockwise from 3 o'clock; start at 12 o'clock.
+            graphics.DrawArc(fill, bounds, -90f, (float)sweep);
+        }
+        finally
+        {
+            graphics.SmoothingMode = previous;
+        }
+    }
+
+    /// <summary>
+    /// A hand-drawn vector glyph for the metric. At chip size a font glyph turns to
+    /// mush, so each icon is a few strokes that stay legible at four or five pixels.
+    /// </summary>
+    private static void DrawChipGlyph(Graphics graphics, string metric, Color color, float x, float y, float size, float scale)
+    {
+        SmoothingMode previous = graphics.SmoothingMode;
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        try
+        {
+            float stroke = Math.Max(1f, (float)Math.Round(scale));
+            using var pen = new Pen(color, stroke) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+            float right = x + size;
+            float bottom = y + size;
+            float midX = x + (size / 2f);
+            float midY = y + (size / 2f);
+
+            switch (ChipMetrics.Normalize(metric))
+            {
+                case ChipMetrics.Cpu:
+                    // A square die with a pin on each side.
+                    graphics.DrawRectangle(pen, x + (size * 0.2f), y + (size * 0.2f), size * 0.6f, size * 0.6f);
+                    graphics.DrawLine(pen, midX, y, midX, y + (size * 0.2f));
+                    graphics.DrawLine(pen, midX, bottom - (size * 0.2f), midX, bottom);
+                    graphics.DrawLine(pen, x, midY, x + (size * 0.2f), midY);
+                    graphics.DrawLine(pen, right - (size * 0.2f), midY, right, midY);
+                    break;
+
+                case ChipMetrics.Ram:
+                    // A stick with two contact notches.
+                    graphics.DrawRectangle(pen, x, y + (size * 0.25f), size, size * 0.5f);
+                    graphics.DrawLine(pen, x + (size * 0.3f), bottom - (size * 0.25f), x + (size * 0.3f), bottom);
+                    graphics.DrawLine(pen, x + (size * 0.7f), bottom - (size * 0.25f), x + (size * 0.7f), bottom);
+                    break;
+
+                case ChipMetrics.Gpu:
+                    // A card with a fan circle.
+                    graphics.DrawRectangle(pen, x, y + (size * 0.2f), size, size * 0.6f);
+                    graphics.DrawEllipse(pen, midX - (size * 0.18f), midY - (size * 0.18f), size * 0.36f, size * 0.36f);
+                    break;
+
+                case ChipMetrics.Disk:
+                    // A stacked-platter cylinder.
+                    graphics.DrawEllipse(pen, x, y + (size * 0.1f), size, size * 0.3f);
+                    graphics.DrawLine(pen, x, y + (size * 0.25f), x, bottom - (size * 0.15f));
+                    graphics.DrawLine(pen, right, y + (size * 0.25f), right, bottom - (size * 0.15f));
+                    graphics.DrawArc(pen, x, bottom - (size * 0.3f), size, size * 0.3f, 0f, 180f);
+                    break;
+
+                default:
+                    // Battery: a body with a terminal nub.
+                    graphics.DrawRectangle(pen, x, y + (size * 0.2f), size * 0.8f, size * 0.6f);
+                    graphics.DrawLine(pen, right - (size * 0.2f), midY - (size * 0.12f), right, midY - (size * 0.12f));
+                    graphics.DrawLine(pen, right - (size * 0.2f), midY + (size * 0.12f), right, midY + (size * 0.12f));
+                    break;
+            }
+        }
+        finally
+        {
+            graphics.SmoothingMode = previous;
+        }
+    }
+
+    /// <summary>A translucent rounded pill behind a chip, with a lighter top edge.</summary>
+    private static void DrawGlassChipPill(Graphics graphics, float x, float y, float width, float height, float scale)
+    {
+        if (width <= 0 || height <= 0)
+        {
+            return;
+        }
+
+        float padX = Math.Max(1f, (float)Math.Round(2 * scale));
+        var pill = new Rectangle(
+            (int)Math.Floor(x - padX),
+            (int)Math.Floor(y),
+            (int)Math.Ceiling(width + (padX * 2)),
+            (int)Math.Ceiling(height));
+        if (pill.Width <= 0 || pill.Height <= 0)
+        {
+            return;
+        }
+
+        SmoothingMode previous = graphics.SmoothingMode;
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        try
+        {
+            int radius = Math.Max(1, Math.Min(pill.Height / 2, (int)Math.Round(3 * scale)));
+            using GraphicsPath path = CreateRoundedPath(pill, radius);
+            using (var body = new SolidBrush(Color.FromArgb(GlassChipAlpha, 255, 255, 255)))
+            {
+                graphics.FillPath(body, path);
+            }
+
+            using var highlight = new Pen(Color.FromArgb(GlassChipHighlightAlpha, 255, 255, 255), Math.Max(1f, scale));
+            graphics.DrawLine(highlight, pill.Left + radius, pill.Top, pill.Right - radius, pill.Top);
+        }
+        finally
+        {
+            graphics.SmoothingMode = previous;
         }
     }
 
@@ -947,7 +1183,120 @@ internal sealed class WidgetRenderer
         }
     }
 
-    /// <summary>The classic look: solid tracks with a solid fill from the left.</summary>
+    /// <summary>
+    /// The glass look: a translucent track with a lighter top edge and a soft inner
+    /// shadow, and a fill that fades from a bright top to a deeper bottom with a 1px
+    /// specular line along its top. Real blur is not available on a layered window, so
+    /// the glass is built from alpha, a highlight and a shadow.
+    /// </summary>
+    private static void DrawGlassMeters(Graphics graphics, WidgetVisual visual, MonitorConfig config, WidgetLayout layout, WidgetTheme theme)
+    {
+        DrawGlassTrack(graphics, layout.DownloadBar, config, layout.Scale);
+        DrawGlassTrack(graphics, layout.UploadBar, config, layout.Scale);
+
+        DrawGlassFill(graphics, layout.DownloadBar, visual.DownloadRatio, config.DownloadColor, config, layout.Scale);
+        DrawGlassFill(graphics, layout.UploadBar, visual.UploadRatio, config.UploadColor, config, layout.Scale);
+    }
+
+    private static void DrawGlassTrack(Graphics graphics, Rectangle track, MonitorConfig config, float scale)
+    {
+        if (track.Width <= 0 || track.Height <= 0)
+        {
+            return;
+        }
+
+        SmoothingMode previous = graphics.SmoothingMode;
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        try
+        {
+            int radius = Math.Max(1, Math.Min(track.Height / 2, (int)Math.Round(2 * scale)));
+            using GraphicsPath path = CreateRoundedPath(track, radius);
+
+            // The body of the glass: a faint white wash, so the taskbar shows through.
+            using (var body = new SolidBrush(Color.FromArgb(GlassTrackAlpha, 255, 255, 255)))
+            {
+                graphics.FillPath(body, path);
+            }
+
+            // The inner shadow along the bottom edge gives the track depth.
+            using (var shadow = new Pen(Color.FromArgb(GlassShadowAlpha, 0, 0, 0), Math.Max(1f, scale)))
+            {
+                graphics.DrawLine(shadow, track.Left + radius, track.Bottom - 1, track.Right - radius, track.Bottom - 1);
+            }
+
+            // The specular highlight along the top edge is what reads as "glass".
+            using (var highlight = new Pen(Color.FromArgb(GlassHighlightAlpha, 255, 255, 255), Math.Max(1f, scale)))
+            {
+                graphics.DrawLine(highlight, track.Left + radius, track.Top, track.Right - radius, track.Top);
+            }
+        }
+        finally
+        {
+            graphics.SmoothingMode = previous;
+        }
+    }
+
+    private static void DrawGlassFill(Graphics graphics, Rectangle track, double ratio, Color color, MonitorConfig config, float scale)
+    {
+        int width = FillWidth(track.Width, ratio);
+        if (width <= 0)
+        {
+            return;
+        }
+
+        Rectangle fill = Slice(track, width);
+        if (fill.Width <= 0 || fill.Height <= 0)
+        {
+            return;
+        }
+
+        if (config.AccentGlow)
+        {
+            DrawGlow(graphics, fill, color, scale);
+        }
+
+        // A vertical gradient, brighter at the top, is the body of the glass fill. It is
+        // drawn translucent so the track stays visible underneath and the bar reads as a
+        // level rising inside a tube, not as a solid block that switches on.
+        using (var brush = new LinearGradientBrush(
+            new Rectangle(fill.X, fill.Y, Math.Max(1, fill.Width), Math.Max(2, fill.Height)),
+            WithAlpha(Lighten(color, GlassFillTopLift), GlassFillTopAlpha),
+            WithAlpha(color, GlassFillBottomAlpha),
+            LinearGradientMode.Vertical))
+        {
+            FillShape(graphics, brush, fill, config.RoundedBars, scale);
+        }
+
+        // The specular line along the top of the fill is the wet highlight.
+        SmoothingMode previous = graphics.SmoothingMode;
+        graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        try
+        {
+            int radius = Math.Max(1, Math.Min(fill.Height / 2, (int)Math.Round(2 * scale)));
+            using var highlight = new Pen(Color.FromArgb(GlassFillHighlightAlpha, 255, 255, 255), Math.Max(1f, scale));
+            graphics.DrawLine(highlight, fill.Left + radius, fill.Top, Math.Max(fill.Left + radius, fill.Right - radius), fill.Top);
+        }
+        finally
+        {
+            graphics.SmoothingMode = previous;
+        }
+    }
+
+    /// <summary>Moves a colour towards white by <paramref name="amount"/> (0..1).</summary>
+    private static Color Lighten(Color color, double amount)
+    {
+        double t = Numeric.Clamp(amount, 0.0, 1.0);
+        return Color.FromArgb(
+            color.A,
+            (int)Math.Round(color.R + ((255 - color.R) * t)),
+            (int)Math.Round(color.G + ((255 - color.G) * t)),
+            (int)Math.Round(color.B + ((255 - color.B) * t)));
+    }
+
+    /// <summary>The same colour with a different alpha, for the translucent glass fills.</summary>
+    private static Color WithAlpha(Color color, int alpha) =>
+        Color.FromArgb(Numeric.Clamp(alpha, 0, 255), color.R, color.G, color.B);
+
     private static void DrawSolidMeters(Graphics graphics, WidgetVisual visual, MonitorConfig config, WidgetLayout layout, WidgetTheme theme)
     {
         using var trackBrush = new SolidBrush(theme.TrackColor);
@@ -1255,6 +1604,36 @@ internal sealed class WidgetRenderer
 
     /// <summary>Opacity of a gradient fill's far end, as a byte.</summary>
     private const int GradientTailAlpha = 90;
+
+    /// <summary>Alpha of the glass track's white wash.</summary>
+    private const int GlassTrackAlpha = 46;
+
+    /// <summary>Alpha of the glass track's inner shadow.</summary>
+    private const int GlassShadowAlpha = 60;
+
+    /// <summary>Alpha of the glass track's top highlight.</summary>
+    private const int GlassHighlightAlpha = 90;
+
+    /// <summary>Alpha of the specular line along the top of a glass fill.</summary>
+    private const int GlassFillHighlightAlpha = 150;
+
+    /// <summary>How far the top of a glass fill is lifted towards white (0..1).</summary>
+    private const double GlassFillTopLift = 0.45;
+
+    /// <summary>Alpha of the glass fill's top edge: bright, but still see-through.</summary>
+    private const int GlassFillTopAlpha = 210;
+
+    /// <summary>Alpha of the glass fill's bottom edge, so the track shows through.</summary>
+    private const int GlassFillBottomAlpha = 150;
+
+    /// <summary>Alpha of the translucent pill behind a glass chip.</summary>
+    private const int GlassChipAlpha = 30;
+
+    /// <summary>Alpha of the glass chip pill's top highlight.</summary>
+    private const int GlassChipHighlightAlpha = 70;
+
+    /// <summary>Alpha of the unfilled part of a chip's level ring.</summary>
+    private const int RingTrackAlpha = 70;
 
     private static void DrawRowText(
         Graphics graphics,

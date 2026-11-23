@@ -32,7 +32,12 @@ internal sealed class WidgetPreset
         string? downloadTextMode = null,
         string? downloadTextColor = null,
         string? uploadTextMode = null,
-        string? uploadTextColor = null)
+        string? uploadTextColor = null,
+        string? chipIndicator = null,
+        string? chipIcon = null,
+        bool glassMeters = false,
+        bool glassChips = false,
+        bool chipTextFollowsChip = false)
     {
         Name = name;
         Description = description;
@@ -56,6 +61,11 @@ internal sealed class WidgetPreset
         DownloadTextColor = downloadTextColor;
         UploadTextMode = uploadTextMode;
         UploadTextColor = uploadTextColor;
+        ChipIndicator = chipIndicator;
+        ChipIcon = chipIcon;
+        GlassMeters = glassMeters;
+        GlassChips = glassChips;
+        ChipTextFollowsChip = chipTextFollowsChip;
     }
 
     public string Name { get; }
@@ -104,6 +114,20 @@ internal sealed class WidgetPreset
 
     public string? UploadTextColor { get; }
 
+    /// <summary>Explicit chip level indicator, or null to leave the current one.</summary>
+    public string? ChipIndicator { get; }
+
+    /// <summary>Explicit chip marker, or null to leave the current one.</summary>
+    public string? ChipIcon { get; }
+
+    /// <summary>Whether the preset asks for the translucent glass tracks.</summary>
+    public bool GlassMeters { get; }
+
+    public bool GlassChips { get; }
+
+    /// <summary>Whether each chip's text is drawn in that chip's own colour.</summary>
+    public bool ChipTextFollowsChip { get; }
+
     public override string ToString() => Name;
 }
 
@@ -135,10 +159,12 @@ internal static class WidgetPresets
         new(
             "HAS Preset", "The look with vertical segments, both figures tinted by their bar.",
             "#2ECC71","#E6643C", WidgetStyles.SidebarSegments, ArrowStyles.Small, StackOrder.UploadFirst,
-            4, 0, 10.5, 150, bold: true, roundedBars: true,
+            3, 1, 10.5, 150, bold: true, roundedBars: true,
             backdropOpacity: 255,
             downloadTextMode: TextColorModes.Bar, downloadTextColor: "#2ECC71",
-            uploadTextMode: TextColorModes.Bar, uploadTextColor: "#E6643C"),
+            uploadTextMode: TextColorModes.Bar, uploadTextColor: "#E6643C",
+            chipIndicator: ChipIndicators.Bar,
+            chipTextFollowsChip: true),
 
         // The plain green/red bars the renderer and the older tests use as their baseline.
         new(
@@ -408,6 +434,22 @@ internal static class WidgetPresets
             result.UploadTextColorHex = uploadText;
         }
 
+        // A preset that names no chip look leaves the current one, so applying a colour-only
+        // preset does not silently reset the chips the user configured.
+        if (preset.ChipIndicator is { Length: > 0 } indicator)
+        {
+            result.ChipIndicator = indicator;
+        }
+
+        if (preset.ChipIcon is { Length: > 0 } icon)
+        {
+            result.ChipIcon = icon;
+        }
+
+        result.GlassMeters = preset.GlassMeters;
+        result.GlassChips = preset.GlassChips;
+        result.ChipTextFollowsChip = preset.ChipTextFollowsChip;
+
         return result.Normalize();
     }
 
@@ -468,7 +510,12 @@ internal static class WidgetPresets
             && left.AccentGlow == right.AccentGlow
             && left.ShowBackdrop == right.ShowBackdrop
             && left.BackdropOpacity == right.BackdropOpacity
-            && left.CrispText == right.CrispText;
+            && left.CrispText == right.CrispText
+            && string.Equals(left.ChipIndicator, right.ChipIndicator, StringComparison.Ordinal)
+            && string.Equals(left.ChipIcon, right.ChipIcon, StringComparison.Ordinal)
+            && left.GlassMeters == right.GlassMeters
+            && left.GlassChips == right.GlassChips
+            && left.ChipTextFollowsChip == right.ChipTextFollowsChip;
     }
 
     /// <summary>

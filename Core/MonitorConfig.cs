@@ -154,6 +154,66 @@ internal sealed class MonitorConfig
     /// <summary>Show the battery chip while on battery power.</summary>
     public bool ShowBattery { get; set; }
 
+    /// <summary>
+    /// The colour of the CPU chip's dot. Empty means "use the built-in palette", so an
+    /// existing config keeps the look it had before per-chip colours existed.
+    /// </summary>
+    public string CpuColorHex { get; set; } = string.Empty;
+
+    /// <summary>The colour of the RAM chip's dot; see <see cref="CpuColorHex"/>.</summary>
+    public string RamColorHex { get; set; } = string.Empty;
+
+    /// <summary>The colour of the GPU chip's dot; see <see cref="CpuColorHex"/>.</summary>
+    public string GpuColorHex { get; set; } = string.Empty;
+
+    /// <summary>The colour of the disk chip's dot; see <see cref="CpuColorHex"/>.</summary>
+    public string DiskColorHex { get; set; } = string.Empty;
+
+    /// <summary>The colour of the battery chip's dot; see <see cref="CpuColorHex"/>.</summary>
+    public string BatteryColorHex { get; set; } = string.Empty;
+
+    /// <summary>
+    /// The colour of the CPU chip's text. Empty means "follow the widget's figure colour",
+    /// so an existing config keeps the look it had before per-chip text colours existed.
+    /// </summary>
+    public string CpuTextColorHex { get; set; } = string.Empty;
+
+    /// <summary>The colour of the RAM chip's text; see <see cref="CpuTextColorHex"/>.</summary>
+    public string RamTextColorHex { get; set; } = string.Empty;
+
+    /// <summary>The colour of the GPU chip's text; see <see cref="CpuTextColorHex"/>.</summary>
+    public string GpuTextColorHex { get; set; } = string.Empty;
+
+    /// <summary>The colour of the disk chip's text; see <see cref="CpuTextColorHex"/>.</summary>
+    public string DiskTextColorHex { get; set; } = string.Empty;
+
+    /// <summary>The colour of the battery chip's text; see <see cref="CpuTextColorHex"/>.</summary>
+    public string BatteryTextColorHex { get; set; } = string.Empty;
+
+    /// <summary>One of <see cref="ChipIndicators"/>: how a chip shows its level.</summary>
+    public string ChipIndicator { get; set; } = ChipIndicators.None;
+
+    /// <summary>One of <see cref="ChipIcons"/>: the letter or the vector glyph at the chip's left.</summary>
+    public string ChipIcon { get; set; } = ChipIcons.Letter;
+
+    /// <summary>
+    /// Draw the bar tracks and fills with the translucent glass look: a frosted track, a
+    /// gradient fill and a specular line. Off by default so existing configs look unchanged.
+    /// </summary>
+    public bool GlassMeters { get; set; }
+
+    /// <summary>
+    /// Draw a translucent glass pill behind every chip, whatever the bar style. Off by
+    /// default so existing configs look unchanged.
+    /// </summary>
+    public bool GlassChips { get; set; }
+
+    /// <summary>
+    /// Draw each chip's text in that chip's own dot colour, so one colour choice covers both.
+    /// Off by default, so the text keeps following the figure colour until asked otherwise.
+    /// </summary>
+    public bool ChipTextFollowsChip { get; set; }
+
     /// <summary>Whether any statistic chip is wanted at all.</summary>
     [JsonIgnore]
     public bool AnyStatsEnabled => ShowCpu || ShowGpu || ShowRam || ShowDisk || ShowBattery;
@@ -189,8 +249,8 @@ internal sealed class MonitorConfig
         ShowText = true,
         ShowBackdrop = false,
         BackdropOpacity = 255,
-        BarThicknessPx = 4,
-        SegmentGapPx = 0,
+        BarThicknessPx = 3,
+        SegmentGapPx = 1,
         FontSizePt = 10.5,
         Style = WidgetStyles.SidebarSegments,
         SortOrder = StackOrder.UploadFirst,
@@ -204,7 +264,11 @@ internal sealed class MonitorConfig
         CrispText = false,
         StartWithWindows = true,
         ShowCpu = true,
+        ShowGpu = false,
         ShowRam = true,
+        ShowDisk = false,
+        ChipIndicator = ChipIndicators.Bar,
+        ChipTextFollowsChip = true,
     };
 
     public static string LegacyConfigPath => Path.Combine(AppContext.BaseDirectory, "config.json");
@@ -218,6 +282,97 @@ internal sealed class MonitorConfig
 
     [JsonIgnore]
     public Color UploadColor => ColorHelper.Parse(UploadColorHex, DefaultUpload);
+
+    /// <summary>
+    /// The colour a chip's dot is drawn in: the user's per-chip colour when set, otherwise
+    /// the built-in palette entry for that metric. <paramref name="metric"/> is one of the
+    /// <see cref="ChipMetrics"/> names.
+    /// </summary>
+    public Color ChipColor(string metric) => ColorHelper.Parse(ChipColorHex(metric), ChipMetrics.Default(metric));
+
+    /// <summary>The raw per-chip colour string for a metric, empty when the user has not set one.</summary>
+    public string ChipColorHex(string metric) => metric switch
+    {
+        ChipMetrics.Cpu => CpuColorHex,
+        ChipMetrics.Ram => RamColorHex,
+        ChipMetrics.Gpu => GpuColorHex,
+        ChipMetrics.Disk => DiskColorHex,
+        ChipMetrics.Battery => BatteryColorHex,
+        _ => string.Empty,
+    };
+
+    /// <summary>Sets the per-chip colour string for a metric; an empty value restores the palette default.</summary>
+    public void SetChipColorHex(string metric, string? hex)
+    {
+        string value = hex ?? string.Empty;
+        switch (metric)
+        {
+            case ChipMetrics.Cpu:
+                CpuColorHex = value;
+                break;
+            case ChipMetrics.Ram:
+                RamColorHex = value;
+                break;
+            case ChipMetrics.Gpu:
+                GpuColorHex = value;
+                break;
+            case ChipMetrics.Disk:
+                DiskColorHex = value;
+                break;
+            case ChipMetrics.Battery:
+                BatteryColorHex = value;
+                break;
+        }
+    }
+
+    /// <summary>
+    /// The colour a chip's text is drawn in: the chip's own dot colour when the user asked
+    /// the text to match it, otherwise the user's per-chip text colour when set, otherwise
+    /// <paramref name="fallback"/> (the widget's figure colour).
+    /// </summary>
+    public Color ChipTextColor(string metric, Color fallback) =>
+        ChipTextFollowsChip
+            ? ChipColor(metric)
+            : ColorHelper.Parse(ChipTextColorHex(metric), fallback);
+
+    /// <summary>The raw per-chip text colour string for a metric, empty when the user has not set one.</summary>
+    public string ChipTextColorHex(string metric) => metric switch
+    {
+        ChipMetrics.Cpu => CpuTextColorHex,
+        ChipMetrics.Ram => RamTextColorHex,
+        ChipMetrics.Gpu => GpuTextColorHex,
+        ChipMetrics.Disk => DiskTextColorHex,
+        ChipMetrics.Battery => BatteryTextColorHex,
+        _ => string.Empty,
+    };
+
+    /// <summary>Sets the per-chip text colour string for a metric; an empty value restores the fallback.</summary>
+    public void SetChipTextColorHex(string metric, string? hex)
+    {
+        string value = hex ?? string.Empty;
+        switch (metric)
+        {
+            case ChipMetrics.Cpu:
+                CpuTextColorHex = value;
+                break;
+            case ChipMetrics.Ram:
+                RamTextColorHex = value;
+                break;
+            case ChipMetrics.Gpu:
+                GpuTextColorHex = value;
+                break;
+            case ChipMetrics.Disk:
+                DiskTextColorHex = value;
+                break;
+            case ChipMetrics.Battery:
+                BatteryTextColorHex = value;
+                break;
+        }
+    }
+
+    /// <summary>True when the glass chip pill is drawn.</summary>
+    [JsonIgnore]
+    public bool EffectiveGlassChips => GlassChips;
 
     /// <summary>
     /// The colour the download figure is drawn in: the taskbar's text colour, the row's
@@ -274,6 +429,21 @@ internal sealed class MonitorConfig
         ShowRam = ShowRam,
         ShowDisk = ShowDisk,
         ShowBattery = ShowBattery,
+        CpuColorHex = CpuColorHex,
+        RamColorHex = RamColorHex,
+        GpuColorHex = GpuColorHex,
+        DiskColorHex = DiskColorHex,
+        BatteryColorHex = BatteryColorHex,
+        CpuTextColorHex = CpuTextColorHex,
+        RamTextColorHex = RamTextColorHex,
+        GpuTextColorHex = GpuTextColorHex,
+        DiskTextColorHex = DiskTextColorHex,
+        BatteryTextColorHex = BatteryTextColorHex,
+        ChipIndicator = ChipIndicator,
+        ChipIcon = ChipIcon,
+        GlassMeters = GlassMeters,
+        GlassChips = GlassChips,
+        ChipTextFollowsChip = ChipTextFollowsChip,
     };
 
     /// <summary>
@@ -322,6 +492,21 @@ internal sealed class MonitorConfig
         ShowRam = other.ShowRam;
         ShowDisk = other.ShowDisk;
         ShowBattery = other.ShowBattery;
+        CpuColorHex = other.CpuColorHex;
+        RamColorHex = other.RamColorHex;
+        GpuColorHex = other.GpuColorHex;
+        DiskColorHex = other.DiskColorHex;
+        BatteryColorHex = other.BatteryColorHex;
+        CpuTextColorHex = other.CpuTextColorHex;
+        RamTextColorHex = other.RamTextColorHex;
+        GpuTextColorHex = other.GpuTextColorHex;
+        DiskTextColorHex = other.DiskTextColorHex;
+        BatteryTextColorHex = other.BatteryTextColorHex;
+        ChipIndicator = other.ChipIndicator;
+        ChipIcon = other.ChipIcon;
+        GlassMeters = other.GlassMeters;
+        GlassChips = other.GlassChips;
+        ChipTextFollowsChip = other.ChipTextFollowsChip;
         Normalize();
     }
 
@@ -371,6 +556,27 @@ internal sealed class MonitorConfig
         Style = WidgetStyles.Normalize(Style);
         SortOrder = StackOrder.Normalize(SortOrder);
 
+        // An empty chip colour means "use the palette default", so it is left empty. A
+        // non-empty one that does not parse is repaired to the palette colour rather than
+        // silently dropped, so a typo does not look like "never set".
+        CpuColorHex = NormalizeChipColor(CpuColorHex, ChipMetrics.Cpu);
+        RamColorHex = NormalizeChipColor(RamColorHex, ChipMetrics.Ram);
+        GpuColorHex = NormalizeChipColor(GpuColorHex, ChipMetrics.Gpu);
+        DiskColorHex = NormalizeChipColor(DiskColorHex, ChipMetrics.Disk);
+        BatteryColorHex = NormalizeChipColor(BatteryColorHex, ChipMetrics.Battery);
+
+        // Chip text colours follow the same rule: empty means "follow the figure colour",
+        // and a value that does not parse is repaired to the default figure colour.
+        Color textFallback = ColorHelper.Parse(DefaultTextColor, Color.White);
+        CpuTextColorHex = NormalizeChipTextColor(CpuTextColorHex, textFallback);
+        RamTextColorHex = NormalizeChipTextColor(RamTextColorHex, textFallback);
+        GpuTextColorHex = NormalizeChipTextColor(GpuTextColorHex, textFallback);
+        DiskTextColorHex = NormalizeChipTextColor(DiskTextColorHex, textFallback);
+        BatteryTextColorHex = NormalizeChipTextColor(BatteryTextColorHex, textFallback);
+
+        ChipIndicator = ChipIndicators.Normalize(ChipIndicator);
+        ChipIcon = ChipIcons.Normalize(ChipIcon);
+
         // Keep only a family that is really here; otherwise the automatic taskbar font.
         FontFamily = FontCatalog.Normalize(FontFamily);
 
@@ -378,6 +584,35 @@ internal sealed class MonitorConfig
     }
 
     public string ToJson() => ConfigJson.Serialize(this);
+
+    /// <summary>
+    /// Repairs one per-chip colour. Empty stays empty (the palette default applies); a
+    /// value that does not parse becomes the palette colour so a typo is visible as a
+    /// concrete colour rather than silently reverting to "never set".
+    /// </summary>
+    private static string NormalizeChipColor(string? hex, string metric)
+    {
+        if (string.IsNullOrWhiteSpace(hex))
+        {
+            return string.Empty;
+        }
+
+        return ColorHelper.ToHex(ColorHelper.Parse(hex, ChipMetrics.Default(metric)));
+    }
+
+    /// <summary>
+    /// Repairs one per-chip text colour. Empty stays empty (the figure colour applies); a
+    /// value that does not parse becomes <paramref name="fallback"/> so a typo is visible.
+    /// </summary>
+    private static string NormalizeChipTextColor(string? hex, Color fallback)
+    {
+        if (string.IsNullOrWhiteSpace(hex))
+        {
+            return string.Empty;
+        }
+
+        return ColorHelper.ToHex(ColorHelper.Parse(hex, fallback));
+    }
 
     public static MonitorConfig FromJson(string? json)
     {
