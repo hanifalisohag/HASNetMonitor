@@ -241,6 +241,7 @@ output, so publish first and then compile it (both lines run in PowerShell):
 dotnet publish HASNetMonitor.csproj -c Release -f net48 -o publish
 
 # 2. compile the script
+
 & "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" installer\HASNetMonitor.iss
 ```
 
@@ -483,16 +484,19 @@ stat. Each chip appears as its toggle is enabled; the column grows to fit the wi
 in it. Chips are centred on the figure rows they sit beside, so they never push the traffic
 out of the bar.
 
-Chips are never shown as placeholders. A reading that is not available — GPU counters
-that do not resolve, a drive that cannot be read, a desktop with no battery — simply
-drops out of the grid, so the widget never shows a confident-looking zero. A single
-failed read does not blank a chip the user is already looking at: the last known value
-is held briefly, but once the failure lasts past a few seconds the metric is treated as
-gone and the chip disappears. The figures and the chips advance at the same rate, whatever
-the refresh interval is. The battery chip also disappears whenever the machine is on AC
-power: a laptop on the charger has nothing to gain by quoting its own charge. On a taskbar
-that is too short for the figures, the figure is shrunk first; the chips ride along beside
-it and are never dropped to make room.
+An enabled chip always keeps its slot. A reading that is not available — GPU counters
+that do not resolve, a drive that cannot be read — shows a `--` placeholder rather than
+dropping out, so the widget never shows a confident-looking zero and its size never
+changes when a reading comes and goes. A single failed read does not blank a chip the
+user is already looking at: the last known value is held briefly, and once the failure
+lasts past a few seconds the chip falls back to the placeholder. Each metric is sampled on
+its own background thread, so a slow read — a GPU sweep, a disk query on a spun-down drive —
+delays only that chip: the others keep advancing on time, and the slow one keeps its last
+value until its own read finishes. The battery chip is
+the one exception: it disappears whenever the machine is on AC power, because a laptop
+on the charger has nothing to gain by quoting its own charge. On a taskbar that is too
+short for the figures, the figure is shrunk first; the chips ride along beside it and
+are never dropped to make room.
 
 `ShowGpu` is off by default because GPU telemetry is not universal: the performance-counter
 signals are absent on some drivers. The widget first tries the generic PDH counters, then
