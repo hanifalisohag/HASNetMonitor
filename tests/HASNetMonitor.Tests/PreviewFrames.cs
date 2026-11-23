@@ -32,7 +32,7 @@ public class PreviewFrames
             // A fixed reading so the chip previews show real levels rather than placeholders.
             var stats = new SystemStatsReading(
                 42.0, 63.0, 27.0, 214_000_000_000,
-                new DiskMonitor.DiskReading("C:", 214_000_000_000, 512_000_000_000),
+                new DiskMonitor.DiskReading("C:", 214_000_000_000, 512_000_000_000) { ActivityPercent = 58.0 },
                 new BatteryMonitor.BatteryReading(true, 76, false));
             WidgetLayout layout = renderer.ComputeLayout(cfg, scale, 0, stats);
 
@@ -96,6 +96,20 @@ public class PreviewFrames
         glassChips.GlassMeters = true;
         glassChips.GlassChips = true;
         Shot("chips_glass", glassChips, WidgetTheme.Dark, 4.5f);
+
+        // The README's chip preview: all four chips (CPU, GPU, RAM, disk) with a bar level.
+        MonitorConfig barChips = Base(WidgetStyles.Bars, ArrowStyles.Classic, TextColorModes.Auto);
+        barChips.ShowCpu = true;
+        barChips.ShowRam = true;
+        barChips.ShowGpu = true;
+        barChips.ShowDisk = true;
+        barChips.ChipIndicator = ChipIndicators.Bar;
+        barChips.ChipIcon = ChipIcons.Glyph;
+        barChips.CpuColorHex = "#FF8A65";
+        barChips.RamColorHex = "#4DD0E1";
+        barChips.GpuColorHex = "#B388FF";
+        barChips.DiskColorHex = "#9CCC65";
+        Shot("chips_bar", barChips, WidgetTheme.Dark, 4.5f);
 
         Shot("arrow_Bar", Base(WidgetStyles.Bars, ArrowStyles.Bar, TextColorModes.Auto), WidgetTheme.Dark, 4f);
         Shot("arrow_Classic", Base(WidgetStyles.Bars, ArrowStyles.Classic, TextColorModes.Auto), WidgetTheme.Dark, 4f);

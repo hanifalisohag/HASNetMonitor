@@ -160,11 +160,18 @@ def themes():
     grid(tiles, 2, 18, "themes.png")
 
 
+def chips():
+    # The four chips (CPU, GPU, RAM, disk) with a bar level, each in its own colour.
+    grid([tile("chips_bar", "System-stats chips", "CPU, GPU, RAM and disk, each with a bar level")],
+         1, 18, "chips.png")
+
+
 hero()
 designs()
 arrows()
 text_colours()
 themes()
+chips()
 
 # Report the widths so a too-narrow image is obvious rather than silently ugly.
 print("\nwidths:", {n: Image.open(os.path.join(OUT, n)).width for n in sorted(os.listdir(OUT))})

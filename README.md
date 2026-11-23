@@ -72,6 +72,8 @@ share the traffic palette. Each chip's **text** colour is set separately (**Chip
 so a chip can have, say, an orange dot with white text. Tick **Text matches chip colour** to use
 one colour for both the chip and its text.
 
+![System-stats chips](imgs/chips.png)
+
 Every colour group has a **Reset** button beside it — bar colours, figure colours, chip colours
 and chip text colours — which clears the group back to its defaults. A chip colour left unset
 follows the built-in palette, and a chip text colour left unset follows the figure colour, so
