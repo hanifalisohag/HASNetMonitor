@@ -189,6 +189,29 @@ internal sealed class TaskbarWidget : LayeredWindow
         return string.IsNullOrEmpty(stats) ? traffic : $"{traffic}  \u00b7  {stats}";
     }
 
+    /// <summary>
+    /// The longest text a tray tooltip accepts. NotifyIcon.Text throws ArgumentException
+    /// above this on .NET Framework, and the caption grows with every chip, so a
+    /// four-chip line overflows it.
+    /// </summary>
+    internal const int MaxTrayTextLength = 63;
+
+    /// <summary>
+    /// Fits a caption into the tray tooltip limit, marking a cut with an ellipsis. The
+    /// caption is built from the sample path, so an over-long one must be trimmed here
+    /// rather than thrown by the tooltip - a throw there skipped the render and froze
+    /// the widget.
+    /// </summary>
+    internal static string FitTrayText(string caption)
+    {
+        if (caption.Length <= MaxTrayTextLength)
+        {
+            return caption;
+        }
+
+        return caption.Substring(0, MaxTrayTextLength - 3) + "...";
+    }
+
     private void OnShellEvent(IntPtr hook, uint eventId, IntPtr window,
         int objectId, int childId, uint threadId, uint time)
     {
@@ -622,7 +645,16 @@ internal sealed class TaskbarWidget : LayeredWindow
             _uploadBar.Current,
             stats);
 
-        CaptionChanged?.Invoke(BuildCaption(stats, downloadRate, uploadRate, _config));
+        // A caption handler must never be able to stop the frame: the tray tooltip is
+        // cosmetic, and a throw here would skip Render and freeze the widget.
+        try
+        {
+            CaptionChanged?.Invoke(BuildCaption(stats, downloadRate, uploadRate, _config));
+        }
+        catch (Exception)
+        {
+            // The tooltip is best-effort; the frame below still goes out.
+        }
 
         Render();
     }

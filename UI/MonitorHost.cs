@@ -65,10 +65,22 @@ internal sealed class MonitorHost : ApplicationContext
             return;
         }
 
-        string text = caption.Length <= 127 ? caption : caption.Substring(0, 124) + "...";
-        if (_trayIcon.Text != text)
+        // NotifyIcon.Text is capped at 63 characters on .NET Framework and throws
+        // ArgumentException above it. The caption grows with every chip, so a four-chip
+        // line overflows it - and because this runs from the sample path, the throw
+        // skipped the render and froze the whole widget. Fit it to the real limit.
+        string text = TaskbarWidget.FitTrayText(caption);
+
+        try
         {
-            _trayIcon.Text = text;
+            if (_trayIcon.Text != text)
+            {
+                _trayIcon.Text = text;
+            }
+        }
+        catch (ArgumentException)
+        {
+            // A tooltip is not worth failing the sample over.
         }
     }
 
