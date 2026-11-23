@@ -27,7 +27,7 @@ public class SystemStatsTests
         71.0,
         55.0,
         107_374_182_400L,
-        new DiskMonitor.DiskReading("C:\\", 107_374_182_400L, 200_000_000_000L),
+        new DiskMonitor.DiskReading("C:\\", 107_374_182_400L, 200_000_000_000L) { ActivityPercent = 46.0 },
         new BatteryMonitor.BatteryReading(OnBattery: true, Percent: 67, Charging: false));
 
     [Fact]
@@ -121,7 +121,7 @@ public class SystemStatsTests
     }
 
     [Fact]
-    public void ADiskWithoutAKnownTotalShowsAPlaceholder()
+    public void ADiskWithoutAKnownActivityShowsAPlaceholder()
     {
         SystemStatsReading reading = KnownReading() with
         {

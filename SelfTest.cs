@@ -273,7 +273,7 @@ internal static class SelfTest
                 71.0,
                 55.0,
                 107_374_182_400L,
-                new DiskMonitor.DiskReading("C:\\", 107_374_182_400L, 200_000_000_000L),
+                new DiskMonitor.DiskReading("C:\\", 107_374_182_400L, 200_000_000_000L) { ActivityPercent = 37.0 },
                 new BatteryMonitor.BatteryReading(true, 67, false));
             WidgetLayout chipLayout = renderer.ComputeLayout(chipConfig, snapshot.DpiScale, maxExtent, chipReading);
             writer.WriteLine(

@@ -13,6 +13,7 @@ internal readonly record struct SystemStatsReading(
     double CpuPercent,
     double RamPercent,
     double? GpuPercent,
+    // Retained for the reading's shape; the disk chip now shows activity, not free space.
     long DiskFreeBytes,
     DiskMonitor.DiskReading Disk,
     BatteryMonitor.BatteryReading Battery)
@@ -154,7 +155,7 @@ internal sealed class SystemStats : IDisposable
             cpu,
             ramPercent,
             gpu,
-            disk.IsKnown ? disk.FreeBytes : -1,
+            -1,
             disk,
             battery);
     }
@@ -203,7 +204,7 @@ internal sealed class SystemStats : IDisposable
     /// <summary><see cref="HoldLastGood(double, ref double, ref long, long, TimeSpan)"/> for a disk reading.</summary>
     internal static DiskMonitor.DiskReading HoldLastGood(DiskMonitor.DiskReading fresh, ref DiskMonitor.DiskReading lastGood, ref long lastGoodTicks, long now, TimeSpan grace)
     {
-        if (fresh.IsKnown)
+        if (fresh.HasActivity)
         {
             lastGood = fresh;
             lastGoodTicks = now;
@@ -241,6 +242,7 @@ internal sealed class SystemStats : IDisposable
         _diskSampler.Dispose();
         _batterySampler.Dispose();
         _gpu.Dispose();
+        _disk.Dispose();
     }
 
     /// <summary>The accent colours the chips are drawn with, keyed by metric.</summary>
@@ -325,15 +327,14 @@ internal sealed class SystemStats : IDisposable
 
         if (config.ShowDisk)
         {
-            if (reading.Disk.IsKnown && reading.Disk.TotalBytes > 0)
+            if (reading.Disk.HasActivity)
             {
-                long used = Math.Max(0, reading.Disk.TotalBytes - reading.Disk.FreeBytes);
-                double usage = 100.0 * used / reading.Disk.TotalBytes;
+                double activity = Numeric.Clamp(reading.Disk.ActivityPercent, 0.0, 100.0);
                 items.Add(new StatsItem(
                     config.ChipColor(ChipMetrics.Disk),
-                    $"D: {FormatPercent(usage)}",
+                    $"D: {FormatPercent(activity)}",
                     "D: 100%",
-                    Numeric.Clamp(usage, 0.0, 100.0) / 100.0,
+                    activity / 100.0,
                     ChipMetrics.Disk));
             }
             else

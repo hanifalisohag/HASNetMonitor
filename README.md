@@ -496,7 +496,9 @@ the same thing, and also switches the glyphs to ClearType.
 
 Beside the traffic rows, the widget can show compact chips describing the machine it
 sits on: a drive-letter-style tag for each stat — **C:** CPU, **R:** RAM, **G:** GPU,
-**B:** battery and **D:** disk (the used percentage of the system drive), each followed
+**B:** battery and **D:** disk (how busy the drives are, from the Windows "PhysicalDisk"
+counters — the `_Total` instance sums every drive into one figure, the same number Task
+Manager calls "Active time"), each followed
 by its percentage. The chips are drawn at the same size as the figures in the same family and
 style, so the statistics read as part of the widget rather than a second, smaller widget bolted
 onto it. Each has its own toggle (**Settings**, the chips row in the second column), and they
@@ -530,7 +532,9 @@ signals are absent on some drivers. The widget first tries the generic PDH count
 falls back to the NVIDIA Management Library directly (`nvml.dll`) when they fail to resolve,
 and if neither path works the chip stays invisible rather than lying. `ShowDisk` and
 `ShowBattery` are opt-in for the same reason — the chip should not appear on a machine
-that cannot fill it.
+that cannot fill it. The disk chip reads the `_Total` "PhysicalDisk" counter, so one chip
+stands for every drive; when that instance is missing it falls back to the first physical
+disk, and if no counter resolves the chip shows a placeholder rather than a zero.
 
 ## Settings dialog
 
