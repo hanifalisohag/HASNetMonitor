@@ -190,7 +190,7 @@ internal sealed class MonitorConfig
 
     private static readonly Color DefaultDownload = Color.FromArgb(0x2E, 0xCC, 0x71);
 
-    private static readonly Color DefaultUpload = Color.FromArgb(0xE7, 0x4C, 0x3C);
+    private static readonly Color DefaultUpload = Color.FromArgb(0xE6, 0x64, 0x3C);
 
     [JsonIgnore]
     public Color DownloadColor => ColorHelper.Parse(DownloadColorHex, DefaultDownload);

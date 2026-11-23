@@ -74,11 +74,11 @@ the current code. All releases are listed on the [releases page](https://github.
 
 ## Requirements
 
-| | |
-|---|---|
-| OS | Windows 11 (developed and tested here); Windows 10 is untested |
-| .NET SDK | 11.0.100 or later (`dotnet --version`) |
-| Python (optional) | Only to regenerate the icon; needs Pillow |
+|                   |                                                                |
+| ----------------- | -------------------------------------------------------------- |
+| OS                | Windows 11 (developed and tested here); Windows 10 is untested |
+| .NET SDK          | 11.0.100 or later (`dotnet --version`)                         |
+| Python (optional) | Only to regenerate the icon; needs Pillow                      |
 
 The app targets `net11.0-windows` and uses WinForms. It runs from a single folder and
 needs no installer.
@@ -196,10 +196,10 @@ dotnet publish HASNetMonitor.csproj -c Release -f net48 -o publish
 
 Output:
 
-| File | Size | Needed? |
-|---|---|---|
+| File                | Size   | Needed?            |
+| ------------------- | ------ | ------------------ |
 | `HASNetMonitor.exe` | 249 KB | yes, the whole app |
-| `HASNetMonitor.pdb` | 39 KB | no, debug symbols |
+| `HASNetMonitor.pdb` | 39 KB  | no, debug symbols  |
 
 The exe is the only file to copy. There is no `HASNetMonitor.exe.config`: .NET Framework
 would normally take its DPI mode from one, so `Core/DpiAwareness.cs` claims
@@ -257,11 +257,11 @@ Needs Inno Setup 6 (`winget install JRSoftware.InnoSetup`); it installs `ISCC.ex
 
 What the script takes, and what to override:
 
-| Input | Default | Override |
-|---|---|---|
-| published exe | `..\publish` beside the script | `/DPublishDir=<dir>` |
-| version | the `#define` fallback, kept equal to `<Version>` | `/DAppVersion=1.2.0` |
-| output | `installer\Output` | `/DOutputDir=<dir>` |
+| Input         | Default                                           | Override             |
+| ------------- | ------------------------------------------------- | -------------------- |
+| published exe | `..\publish` beside the script                    | `/DPublishDir=<dir>` |
+| version       | the `#define` fallback, kept equal to `<Version>` | `/DAppVersion=1.2.0` |
+| output        | `installer\Output`                                | `/DOutputDir=<dir>`  |
 
 The publish folder is the only input the script has: a stale `publish\` produces a Setup
 exe carrying the old `HASNetMonitor.exe`, which installs and runs without complaint, so
@@ -321,38 +321,38 @@ The `Default` column below is what a new install starts with, i.e. the values in
 `CreateInitial()` in `Core/MonitorConfig.cs`. `new MonitorConfig()` on its own keeps the
 plainer baseline the renderer uses.
 
-| Key | Default | Range / values |
-|---|---|---|
-| `DownloadColorHex` | `#2ECC71` | any `#RRGGBB` |
-| `UploadColorHex` | `#E74C3C` | any `#RRGGBB` |
-| `RefreshIntervalMs` | `1000` | 250–60000 |
-| `OffsetFromTrayPx` | `6` | 0–64 |
-| `NudgeXPx` | `0` | −400–400 |
-| `NudgeYPx` | `0` | −400–400 |
-| `AutoScale` | `true` | `true`/`false` |
-| `SharedScale` | `true` | `true`/`false` |
-| `MaxScaleMbps` | `100` | 0.01–100000 |
-| `ShowText` | `true` | `true`/`false` |
-| `ShowBackdrop` | `false` | `true`/`false` |
-| `BackdropOpacity` | `255` | 0–255 |
-| `CrispText` | `false` | `true`/`false` |
-| `ArrowSizePercent` | `150` | 50–300, arrow ink height against a digit's |
-| `ArrowStyle` | `Small` | `Classic`, `Solid`, `Small`, `Double`, `Chevron`, `Bar`, `None` |
-| `DownloadTextColorMode` | `Bar` | `Auto`, `Bar`, `Custom` |
-| `DownloadTextColorHex` | `#2ECC71` | `#RRGGBB`, used when the mode is `Custom` |
-| `UploadTextColorMode` | `Custom` | as above, for the upload row |
-| `UploadTextColorHex` | `#E97D5F` | as above |
-| `BarThicknessPx` | `4` | 1–24 |
-| `SegmentGapPx` | `0` | 0–12 |
-| `FontSizePt` | `10.5` | 6–20 |
-| `Style` | `SidebarSegments` | see below |
-| `SortOrder` | `UploadFirst` | `DownloadFirst`, `UploadFirst` |
-| `FontFamily` | empty | an installed family name, or empty to match the taskbar |
-| `FontBold` | `true` | `true`/`false` |
-| `FontItalic` | `false` | `true`/`false` |
-| `RoundedBars` | `true` | `true`/`false` |
-| `AccentGlow` | `false` | `true`/`false` |
-| `StartWithWindows` | `true` | `true`/`false` |
+| Key                     | Default           | Range / values                                                  |
+| ----------------------- | ----------------- | --------------------------------------------------------------- |
+| `DownloadColorHex`      | `#2ECC71`         | any `#RRGGBB`                                                   |
+| `UploadColorHex`        | `#E6643C`         | any `#RRGGBB`                                                   |
+| `RefreshIntervalMs`     | `1000`            | 250–60000                                                       |
+| `OffsetFromTrayPx`      | `6`               | 0–64                                                            |
+| `NudgeXPx`              | `0`               | −400–400                                                        |
+| `NudgeYPx`              | `0`               | −400–400                                                        |
+| `AutoScale`             | `true`            | `true`/`false`                                                  |
+| `SharedScale`           | `true`            | `true`/`false`                                                  |
+| `MaxScaleMbps`          | `100`             | 0.01–100000                                                     |
+| `ShowText`              | `true`            | `true`/`false`                                                  |
+| `ShowBackdrop`          | `false`           | `true`/`false`                                                  |
+| `BackdropOpacity`       | `255`             | 0–255                                                           |
+| `CrispText`             | `false`           | `true`/`false`                                                  |
+| `ArrowSizePercent`      | `150`             | 50–300, arrow ink height against a digit's                      |
+| `ArrowStyle`            | `Small`           | `Classic`, `Solid`, `Small`, `Double`, `Chevron`, `Bar`, `None` |
+| `DownloadTextColorMode` | `Bar`             | `Auto`, `Bar`, `Custom`                                         |
+| `DownloadTextColorHex`  | `#2ECC71`         | `#RRGGBB`, used when the mode is `Custom`                       |
+| `UploadTextColorMode`   | `Bar`             | as above, for the upload row                                    |
+| `UploadTextColorHex`    | `#E6643C`         | as above                                                        |
+| `BarThicknessPx`        | `4`               | 1–24                                                            |
+| `SegmentGapPx`          | `0`               | 0–12                                                            |
+| `FontSizePt`            | `10.5`            | 6–20                                                            |
+| `Style`                 | `SidebarSegments` | see below                                                       |
+| `SortOrder`             | `UploadFirst`     | `DownloadFirst`, `UploadFirst`                                  |
+| `FontFamily`            | empty             | an installed family name, or empty to match the taskbar         |
+| `FontBold`              | `true`            | `true`/`false`                                                  |
+| `FontItalic`            | `false`           | `true`/`false`                                                  |
+| `RoundedBars`           | `true`            | `true`/`false`                                                  |
+| `AccentGlow`            | `false`           | `true`/`false`                                                  |
+| `StartWithWindows`      | `true`            | `true`/`false`                                                  |
 
 Styles: `Bars` (classic rows), `Level` (segmented level meter), `Sidebar` (vertical
 bars), `SidebarSegments` (vertical bars split by gaps), `Neon` (glow, rounded caps),
@@ -380,17 +380,17 @@ When text is on, each row is the direction arrow followed by the figure:
 - the arrival (download) arrow is drawn in the download colour, the departure (upload)
   arrow in the upload colour, so a row is identified before the number is read;
 - the figure itself is drawn in the **Look → Download text** / **Upload text** colour:
-  *Automatic (taskbar)*, *Same as the bar*, or *Custom colour* picked with the swatch
+  _Automatic (taskbar)_, _Same as the bar_, or _Custom colour_ picked with the swatch
   beside the list. So the figures can be white on a dark taskbar, green and red to match
   the bars, or any pair of colours you like, and the arrow keeps the bar colour either way;
 - **Arrow size** is a spinner: 0.5 to 3.0 in steps of 0.1, so 0.5, 0.6, 1.0 and 2.0
-  are all one click apart, and the value is a multiple of a digit's *ink height* — 1.0 is
+  are all one click apart, and the value is a multiple of a digit's _ink height_ — 1.0 is
   the figure's own size, 1.5 (the default) makes the arrow's ink half again as tall. Its
   right-click menu jumps straight to the round stops (0.5, 1, 1.5, 2, 3) and keeps any
   other value you have set as its own entry. The spinner is `ArrowSizePercent` in the
   config file, so 1.5 there is `150`;
-- **Arrow type** picks the marker: *Classic* ↑↓, *Solid* ▲▼, *Small* ▴▾, *Double* ⇑⇓,
-  *Chevron* ⌃⌄, *Bar* (a stem and head drawn as a shape, not a glyph) or *None*. A family
+- **Arrow type** picks the marker: _Classic_ ↑↓, _Solid_ ▲▼, _Small_ ▴▾, _Double_ ⇑⇓,
+  _Chevron_ ⌃⌄, _Bar_ (a stem and head drawn as a shape, not a glyph) or _None_. A family
   that lacks the chosen code point falls back to the classic arrows, because a missing
   glyph draws as an empty box;
 - U+2191/U+2193 are drawn shorter than the digits in every UI font — 8.1 px against 8.7 at
@@ -427,11 +427,11 @@ round decimal marks 2.5, 5, 10, 20, 40 and 80 MB/s interleaved above 2 MB/s. The
 direction picks the next step at or above it, and both bars fill against that step, so a
 bar length always means a rate that can be named:
 
-| fastest rate | full scale | download bar (of 60 px) | upload bar |
-| --- | --- | --- | --- |
-| 15 KB/s / 10 KB/s | 16 KB/s | 56 px | 38 px |
-| 345 KB/s / 564 KB/s | 1 MB/s (1024 KB/s) | 20 px | 33 px |
-| 10 MB/s / 14 KB/s | 10 MB/s | 60 px | 1 px |
+| fastest rate        | full scale         | download bar (of 60 px) | upload bar |
+| ------------------- | ------------------ | ----------------------- | ---------- |
+| 15 KB/s / 10 KB/s   | 16 KB/s            | 56 px                   | 38 px      |
+| 345 KB/s / 564 KB/s | 1 MB/s (1024 KB/s) | 20 px                   | 33 px      |
+| 10 MB/s / 14 KB/s   | 10 MB/s            | 60 px                   | 1 px       |
 
 The decimal marks are what keep a flat-out link from reading half empty: without them
 9 MB/s would fill against 16 MB/s and sit at 56%. With them it fills against 10 MB/s, and
@@ -474,15 +474,15 @@ font size, text), **Position** (offset from tray, nudges with arrow buttons, res
 
 ## Tray menu
 
-| Item | What it does |
-|---|---|
-| Settings… | Opens the dialog |
-| Look | Style, stacking order, bold, italic |
-| Position | Nudge left/right 4 px, up/down 2 px, reset |
-| Reset bar scaling | Resets the auto-scaler and the smoothed bar values |
-| Start with Windows | Toggles the `Run` entry |
-| About… | App name, version, author, contact and licence |
-| Exit | Quits |
+| Item               | What it does                                       |
+| ------------------ | -------------------------------------------------- |
+| Settings…          | Opens the dialog                                   |
+| Look               | Style, stacking order, bold, italic                |
+| Position           | Nudge left/right 4 px, up/down 2 px, reset         |
+| Reset bar scaling  | Resets the auto-scaler and the smoothed bar values |
+| Start with Windows | Toggles the `Run` entry                            |
+| About…             | App name, version, author, contact and licence     |
+| Exit               | Quits                                              |
 
 ## Version and identity
 
@@ -507,7 +507,7 @@ one source of the wording:
   (`Core/LicenseInfo.cs` reads it), so the About box shows the same text an installed
   copy ships with, whichever folder the exe runs from.
 - The About box shows `License: MIT License - Must credit Md Hanif Ali Sohag as the
-  original author` with a **View full license** link.
+original author` with a **View full license** link.
 - Setup shows the same `LICENSE` on its licence page, and names the author as the
   publisher in Apps & features.
 - The exe's file properties carry `<Copyright>Copyright (c) 2026 Md Hanif Ali Sohag`
@@ -518,11 +518,11 @@ box, the installer page and these tests all read from it.
 
 Upgrading from a build under the previous name:
 
-| What | Effect |
-| --- | --- |
-| Config folder | The build reads `%APPDATA%\HASNetMonitor`. Settings saved by the old build are not read, so a fresh install starts from defaults. |
-| Logon entry | `HKCU\...\Run` gets `HASNetMonitor`. An entry left by the old build is not touched; if you enabled **Start with Windows** before, delete that old `Run` value once by hand. |
-| Single instance | The mutex is `Local\HASNetMonitor.Instance`, so one old and one new build can run side by side once. |
+| What            | Effect                                                                                                                                                                      |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Config folder   | The build reads `%APPDATA%\HASNetMonitor`. Settings saved by the old build are not read, so a fresh install starts from defaults.                                           |
+| Logon entry     | `HKCU\...\Run` gets `HASNetMonitor`. An entry left by the old build is not touched; if you enabled **Start with Windows** before, delete that old `Run` value once by hand. |
+| Single instance | The mutex is `Local\HASNetMonitor.Instance`, so one old and one new build can run side by side once.                                                                        |
 
 ## Project layout
 

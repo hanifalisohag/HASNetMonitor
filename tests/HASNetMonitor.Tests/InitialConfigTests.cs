@@ -1,5 +1,6 @@
 using System.Drawing;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using HASNetMonitor.Core;
 
 namespace HASNetMonitor.Tests;
@@ -47,16 +48,16 @@ public class InitialConfigTests : IDisposable
     [Fact]
     public void TheInitialPresetIsTheUsersCurrentSettings()
     {
-        // Every value below is what the author's own config.json holds; the preset exists
-        // so a new install starts from that working configuration rather than a bare one.
+        // Every value below is what a fresh install creates; the preset exists so a new
+        // install starts from that working configuration rather than a bare one.
         MonitorConfig c = MonitorConfig.CreateInitial();
 
         Assert.Equal("#2ECC71", c.DownloadColorHex);
-        Assert.Equal("#E74C3C", c.UploadColorHex);
+        Assert.Equal("#E6643C", c.UploadColorHex);
         Assert.Equal(TextColorModes.Bar, c.DownloadTextColorMode);
-        Assert.Equal(TextColorModes.Custom, c.UploadTextColorMode);
+        Assert.Equal(TextColorModes.Bar, c.UploadTextColorMode);
         Assert.Equal("#2ECC71", c.DownloadTextColorHex);
-        Assert.Equal("#E97D5F", c.UploadTextColorHex);
+        Assert.Equal("#E6643C", c.UploadTextColorHex);
         Assert.Equal(ArrowStyles.Small, c.ArrowStyle);
         Assert.Equal(1000, c.RefreshIntervalMs);
         Assert.Equal(6, c.OffsetFromTrayPx);
@@ -247,15 +248,19 @@ public class InitialConfigTests : IDisposable
     [InlineData("SortOrder", "UploadFirst")]
     [InlineData("BackdropOpacity", "255")]
     [InlineData("DownloadTextColorMode", "Bar")]
-    [InlineData("UploadTextColorMode", "Custom")]
-    [InlineData("UploadTextColorHex", "#E97D5F")]
+    [InlineData("UploadTextColorMode", "Bar")]
+    [InlineData("UploadTextColorHex", "#E6643C")]
     public void TheReadmeDocumentsTheShippedDefault(string key, string value)
     {
         // The table is what a user reads to understand a fresh install; it has to agree
-        // with the preset, or the docs describe a config nobody has.
+        // with the preset, or the docs describe a config nobody has. It is column-aligned,
+        // so match the row without pinning the padding: what matters is that the shipped
+        // default is documented, not how much whitespace surrounds it.
         string readme = SourceText.Read(".", "README.md");
 
-        Assert.Contains($"| `{key}` | `{value}` |", readme, StringComparison.Ordinal);
+        Regex row = new($@"\|\s*`{Regex.Escape(key)}`\s*\|\s*`{Regex.Escape(value)}`\s*\|", RegexOptions.CultureInvariant);
+
+        Assert.True(row.IsMatch(readme), $"README defaults table has no `{key}` row with `{value}`");
     }
 
     [Fact]

@@ -33,7 +33,7 @@ public class MonitorConfigTests : IDisposable
 
         Assert.Equal(before, JsonSerializer.Serialize(config));
         Assert.Equal("#2ECC71", config.DownloadColorHex);
-        Assert.Equal("#E74C3C", config.UploadColorHex);
+        Assert.Equal("#E6643C", config.UploadColorHex);
         Assert.Equal(1000, config.RefreshIntervalMs);
         Assert.True(config.ShowText);
         Assert.False(config.ShowBackdrop);
@@ -131,7 +131,7 @@ public class MonitorConfigTests : IDisposable
         var config = new MonitorConfig { DownloadColorHex = broken!, UploadColorHex = broken! }.Normalize();
 
         Assert.Equal("#2ECC71", config.DownloadColorHex);
-        Assert.Equal("#E74C3C", config.UploadColorHex);
+        Assert.Equal("#E6643C", config.UploadColorHex);
     }
 
     [Fact]
@@ -305,7 +305,7 @@ public class MonitorConfigTests : IDisposable
         }.Normalize();
 
         Assert.Equal("#2ECC71", config.DownloadColorHex);
-        Assert.Equal("#E74C3C", config.UploadColorHex);
+        Assert.Equal("#E6643C", config.UploadColorHex);
         Assert.InRange(config.RefreshIntervalMs, MonitorConfig.MinRefreshIntervalMs, MonitorConfig.MaxRefreshIntervalMs);
         Assert.False(double.IsNaN(config.MaxScaleMbps));
         Assert.False(double.IsInfinity(config.FontSizePt));

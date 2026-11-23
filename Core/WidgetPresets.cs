@@ -143,7 +143,7 @@ internal static class WidgetPresets
         // The plain green/red bars the renderer and the older tests use as their baseline.
         new(
             "Harbour", "Plain green and red bars with untinted figures.",
-            "#2ECC71","#E74C3C", WidgetStyles.Bars, ArrowStyles.Classic, StackOrder.DownloadFirst,
+            "#2ECC71","#E6643C", WidgetStyles.Bars, ArrowStyles.Classic, StackOrder.DownloadFirst,
             3, 2, 9, 150,
             downloadTextMode: TextColorModes.Auto, uploadTextMode: TextColorModes.Auto),
 

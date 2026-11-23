@@ -35,7 +35,7 @@ public class WidgetRenderingTests
 
     [Theory]
     [InlineData("#123456", "#654321")]
-    [InlineData("#2ECC71", "#E74C3C")]
+    [InlineData("#2ECC71", "#E6643C")]
     [InlineData("#000000", "#FFFFFF")]
     public void BarColoursComeFromTheConfig(string download, string upload)
     {
