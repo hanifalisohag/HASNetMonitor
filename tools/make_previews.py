@@ -91,8 +91,12 @@ def fit_text(d, text, fnt, max_width):
 
 def hero():
     a = art("hero")
-    W = 1200
     padx, pady, head = 56, 44, 78
+    s = strip("hero", pad=12)
+
+    # The banner is as wide as the widget strip needs, never narrower than the README's
+    # other images, so a wider widget (more chips) grows the banner instead of being cropped.
+    W = max(1200, s.width + padx * 2)
     H = a.height + pady * 2 + head
     im = Image.new("RGBA", (W, H), BG)
     d = ImageDraw.Draw(im)
@@ -108,11 +112,10 @@ def hero():
     fit_text(d, tag, reg(16), inner)
     d.text((padx, pady + 44), tag, font=reg(16), fill=MUTED)
 
-    s = strip("hero", pad=12)
     if s.width > inner:
         raise SystemExit(f"hero art too wide: {s.width} > {inner}")
-    # sit the strip against the right edge, matching the banner's padding
-    im.paste(s, (W - padx - s.width, pady + head - 6))
+    # centre the strip under the heading, matching the banner's padding
+    im.paste(s, ((W - s.width) // 2, pady + head - 6))
     save(im, "hero.png")
 
 

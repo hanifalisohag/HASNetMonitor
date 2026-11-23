@@ -126,6 +126,67 @@ public class PreviewFrames
 
         Shot("theme_dark", Base(WidgetStyles.Bars, ArrowStyles.Classic, TextColorModes.Auto), WidgetTheme.Dark, 6.5f);
         Shot("theme_light", Base(WidgetStyles.Bars, ArrowStyles.Classic, TextColorModes.Auto), light, 6.5f);
-        Shot("hero", Base(WidgetStyles.Segments, ArrowStyles.Chevron, TextColorModes.Bar, down: "#4EA1FF", up: "#FFB454"), WidgetTheme.Dark, 7f, 92f, 26f);
+
+        // The hero shows the shipped look with every chip on: the config below is the one the
+        // README's first image is meant to advertise, parsed through the app's own reader so
+        // the preview cannot drift from what that JSON actually renders.
+        Shot("hero", MonitorConfig.FromJson(HeroJson), WidgetTheme.Dark, 7f, 92f, 26f);
     }
+
+    // The look the README's hero advertises: segmented side bars, upload first, all four
+    // chips with a bar level and letter markers, each chip's text following its colour.
+    private const string HeroJson = """
+        {
+          "DownloadColorHex": "#2ECC71",
+          "UploadColorHex": "#E6643C",
+          "DownloadTextColorMode": "Bar",
+          "UploadTextColorMode": "Bar",
+          "DownloadTextColorHex": "#2ECC71",
+          "UploadTextColorHex": "#E6643C",
+          "ArrowStyle": "Small",
+          "RefreshIntervalMs": 1000,
+          "OffsetFromTrayPx": 6,
+          "NudgeXPx": 0,
+          "NudgeYPx": 0,
+          "AutoScale": true,
+          "MaxScaleMbps": 100,
+          "ShowText": true,
+          "ShowBackdrop": false,
+          "BackdropOpacity": 255,
+          "BarThicknessPx": 3,
+          "SegmentGapPx": 1,
+          "FontSizePt": 10.5,
+          "Style": "SidebarSegments",
+          "SortOrder": "UploadFirst",
+          "FontFamily": "",
+          "FontBold": true,
+          "FontItalic": false,
+          "RoundedBars": true,
+          "SharedScale": true,
+          "AccentGlow": false,
+          "ArrowSizePercent": 150,
+          "CrispText": false,
+          "StartWithWindows": true,
+          "ShowCpu": true,
+          "ShowGpu": true,
+          "ShowRam": true,
+          "ShowDisk": true,
+          "ShowBattery": false,
+          "CpuColorHex": "",
+          "RamColorHex": "",
+          "GpuColorHex": "",
+          "DiskColorHex": "",
+          "BatteryColorHex": "",
+          "CpuTextColorHex": "",
+          "RamTextColorHex": "",
+          "GpuTextColorHex": "",
+          "DiskTextColorHex": "",
+          "BatteryTextColorHex": "",
+          "ChipIndicator": "Bar",
+          "ChipIcon": "Letter",
+          "GlassMeters": false,
+          "GlassChips": false,
+          "ChipTextFollowsChip": true
+        }
+        """;
 }
