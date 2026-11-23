@@ -1,7 +1,9 @@
 # HAS NetMonitor
 
 A small always-on-top Windows widget that sits on the taskbar next to the tray and
-shows live download and upload speed as coloured bars, text, or both.
+shows live download and upload speed as coloured bars, text, or both. Optional chips
+beside the figures show the activity of other devices too - CPU, RAM, GPU, disk and
+battery - each in its own colour.
 
 ![HASNetMonitor on the taskbar](imgs/hero.png)
 
@@ -12,7 +14,7 @@ shell hides or buries it.
 - Seven arrow styles, including a drawn bar arrow and no arrow at all
 - Bar and figure colours you pick, or figures that follow their bar
 - A glassy look: translucent tracks and chip pills, on any style
-- System-stats chips with their own colour each, a level ring or bar, and vector icons
+- System-stats chips for CPU, RAM, GPU, disk and battery activity, each with its own colour, a level ring or bar, and vector icons
 - Position it by distance from the tray, then nudge it left/right/up/down in pixels
 - Settings apply to the live widget as you change them
 - Optional start with Windows (per-user `Run` key, no admin rights needed)
