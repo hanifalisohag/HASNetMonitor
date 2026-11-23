@@ -522,4 +522,96 @@ internal static class NativeMethods
             return false;
         }
     }
+
+    // ---- System statistics ────────────────────────────────────────────────────
+    // Pure counter reads: no WMI, no performance-counter helper libraries, nothing
+    // from the framework beyond what the whole app already uses. Every one of them
+    // is allowed to fail; "unknown" is reported, never guessed.
+
+    [DllImport("kernel32.dll")]
+    internal static extern bool GetSystemTimes(out long lpIdleTime, out long lpKernelTime, out long lpUserTime);
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct NativeMemoryStatusEx
+    {
+        public int Size;
+        public uint Load;
+        public ulong TotalPhysical;
+        public ulong AvailablePhysical;
+        public ulong TotalPageFile;
+        public ulong AvailablePageFile;
+        public ulong TotalVirtual;
+        public ulong AvailableVirtual;
+        public ulong AvailableExtendedVirtual;
+    }
+
+    [DllImport("kernel32.dll")]
+    internal static extern bool GlobalMemoryStatusEx(ref NativeMemoryStatusEx lpBuffer);
+
+    [DllImport("kernel32.dll", EntryPoint = "GetDiskFreeSpaceExW", CharSet = CharSet.Unicode)]
+    internal static extern bool GetDiskFreeSpaceExW(string? directory, out long lpFreeBytesAvailable, out long lpTotalNumberOfBytes, out long lpTotalNumberOfFreeBytes);
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct NativePowerStatus
+    {
+        public byte ACLineStatus;
+        public byte BatteryFlag;
+        public byte BatteryLifePercent;
+        public byte SystemStatusFlag;
+        public uint BatteryLifeTime;
+        public uint BatteryFullLifeTime;
+    }
+
+    [DllImport("kernel32.dll")]
+    internal static extern bool GetSystemPowerStatus(out NativePowerStatus lpSystemPowerStatus);
+
+    /// <summary>PDH_FMT_DOUBLE | PDH_FMT_NOCAP100: read a counter as a raw double.</summary>
+    internal const uint PdhFmtDouble = 0x00000200 | 0x00008000;
+
+    [DllImport("pdh.dll", EntryPoint = "PdhOpenQueryW", CharSet = CharSet.Unicode)]
+    internal static extern int PdhOpenQueryW(string? szDataSource, long dwUserData, out IntPtr phQuery);
+
+    [DllImport("pdh.dll", EntryPoint = "PdhAddEnglishCounterW", CharSet = CharSet.Unicode)]
+    internal static extern int PdhAddEnglishCounterW(IntPtr hQuery, string szFullCounterPath, long dwUserData, out IntPtr phCounter);
+
+    [DllImport("pdh.dll", EntryPoint = "PdhCollectQueryData")]
+    internal static extern int PdhCollectQueryData(IntPtr hQuery);
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct PdhFmtCounterValue
+    {
+        public uint CStatus;
+        public double DoubleValue;
+    }
+
+    [DllImport("pdh.dll", EntryPoint = "PdhGetFormattedCounterValue")]
+    internal static extern int PdhGetFormattedCounterValue(IntPtr hCounter, uint dwFormat, IntPtr lpdwType, ref PdhFmtCounterValue pValue);
+
+    [DllImport("pdh.dll", EntryPoint = "PdhCloseQuery")]
+    internal static extern int PdhCloseQuery(IntPtr hQuery);
+
+    // ---- NVML (NVIDIA) ─────────────────────────────────────────────────────────
+    // The generic PDH counters above are not universal - some NVIDIA drivers expose
+    // no GPU Engine counters at all, so this is the fallback that reads the NVIDIA
+    // Management Library directly. Anything that fails here is treated as "unknown",
+    // never as a value.
+
+    [DllImport("nvml.dll", EntryPoint = "nvmlInit_v2")]
+    internal static extern int nvmlInitV2();
+
+    [DllImport("nvml.dll", EntryPoint = "nvmlDeviceGetCount_v2")]
+    internal static extern int nvmlDeviceGetCountV2(out uint deviceCount);
+
+    [DllImport("nvml.dll", EntryPoint = "nvmlDeviceGetHandleByIndex_v2")]
+    internal static extern int nvmlDeviceGetHandleByIndexV2(uint deviceIndex, out IntPtr device);
+
+    [StructLayout(LayoutKind.Sequential)]
+    internal struct NvmlUtilizationData
+    {
+        public uint Gpu;
+        public uint Memory;
+    }
+
+    [DllImport("nvml.dll", EntryPoint = "nvmlDeviceGetUtilizationRates")]
+    internal static extern int nvmlDeviceGetUtilizationRates(IntPtr device, out NvmlUtilizationData rates);
 }

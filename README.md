@@ -353,6 +353,11 @@ plainer baseline the renderer uses.
 | `RoundedBars`           | `true`            | `true`/`false`                                                  |
 | `AccentGlow`            | `false`           | `true`/`false`                                                  |
 | `StartWithWindows`      | `true`            | `true`/`false`                                                  |
+| `ShowCpu`               | `true`            | `true`/`false`                                                  |
+| `ShowRam`               | `true`            | `true`/`false`                                                  |
+| `ShowGpu`               | `false`           | `true`/`false`                                                  |
+| `ShowDisk`              | `false`           | `true`/`false`                                                  |
+| `ShowBattery`           | `false`           | `true`/`false`                                                  |
 
 Styles: `Bars` (classic rows), `Level` (segmented level meter), `Sidebar` (vertical
 bars), `SidebarSegments` (vertical bars split by gaps), `Neon` (glow, rounded caps),
@@ -459,6 +464,43 @@ tint opaque, and the tint-opacity spinner is disabled while it is on, so the dia
 never shows a value the renderer overrides. Setting the tint opacity to 255 by hand is
 the same thing, and also switches the glyphs to ClearType.
 
+## Widget statistics
+
+Beside the traffic rows, the widget can show compact chips describing the machine it
+sits on: a drive-letter-style tag for each stat — **C:** CPU, **R:** RAM, **G:** GPU,
+**B:** battery and **D:** disk (the used percentage of the system drive), each followed
+by its percentage. The chips are drawn at the same size as the figures in the same family and
+style, so the statistics read as part of the widget rather than a second, smaller widget bolted
+onto it. Each has its own toggle (**Settings**, the chips row in the second column), and they
+appear in the tray tooltip's one-line caption as well. All five are off by default
+except CPU and RAM, which are on for a fresh install: a machine always has a CPU and some
+RAM, so a new install is immediately informative.
+
+The chips live in a columnar grid on the **left** of the widget, beside the download and
+upload figures: at most two chips per column, filled top-down, one column every two
+items — the leftmost column carries CPU and RAM, the next GPU, then battery and any other
+stat. Each chip appears as its toggle is enabled; the column grows to fit the widest chip
+in it. Chips are centred on the figure rows they sit beside, so they never push the traffic
+out of the bar.
+
+Chips are never shown as placeholders. A reading that is not available — GPU counters
+that do not resolve, a drive that cannot be read, a desktop with no battery — simply
+drops out of the grid, so the widget never shows a confident-looking zero. A single
+failed read does not blank a chip the user is already looking at: the last known value
+is held briefly, but once the failure lasts past a few seconds the metric is treated as
+gone and the chip disappears. The figures and the chips advance at the same rate, whatever
+the refresh interval is. The battery chip also disappears whenever the machine is on AC
+power: a laptop on the charger has nothing to gain by quoting its own charge. On a taskbar
+that is too short for the figures, the figure is shrunk first; the chips ride along beside
+it and are never dropped to make room.
+
+`ShowGpu` is off by default because GPU telemetry is not universal: the performance-counter
+signals are absent on some drivers. The widget first tries the generic PDH counters, then
+falls back to the NVIDIA Management Library directly (`nvml.dll`) when they fail to resolve,
+and if neither path works the chip stays invisible rather than lying. `ShowDisk` and
+`ShowBattery` are opt-in for the same reason — the chip should not appear on a machine
+that cannot fill it.
+
 ## Settings dialog
 
 Changes apply to the live widget immediately, including start with Windows: the dialog
@@ -471,6 +513,11 @@ has no preview of its own, so what you see on the taskbar is the real thing.
 Groups: **Look** (style, stacking, font, weight, bar shape, thickness, segment gap,
 font size, text), **Position** (offset from tray, nudges with arrow buttons, reset),
 **Colours and behaviour** (colours, refresh, scaling, backdrop, start with Windows).
+
+A bare row of chips sits under the Colours column: **CPU**, **RAM**, **GPU**, **Disk**
+and **Battery (when on battery)**. The chips are the widget's optional statistics column;
+each one toggles its chip, and a chip that cannot be filled stays hidden rather than showing a
+confident-looking zero.
 
 ## Tray menu
 

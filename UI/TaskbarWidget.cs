@@ -70,13 +70,16 @@ internal sealed class TaskbarWidget : LayeredWindow
 
 
     private readonly MonitorConfig _config;
+    private MonitorConfig _liveConfig;
     private readonly WidgetRenderer _renderer = new();
     private readonly TrafficSampler _sampler = new();
+    private readonly SystemStats _stats = new();
     private readonly RateCalculator _download = new();
     private readonly RateCalculator _upload = new();
     private readonly AutoScaler _scaler = new();
     private readonly BarSmoother _downloadBar = new();
     private readonly BarSmoother _uploadBar = new();
+    private readonly object _statsGate = new();
     private readonly object _pendingGate = new();
     private readonly object _timerGate = new();
     private readonly int _taskbarCreatedMessage =
@@ -120,7 +123,7 @@ internal sealed class TaskbarWidget : LayeredWindow
     /// </summary>
     internal static bool NeedsStartupTopMost(int presentedFrames) => presentedFrames is > 0 and <= 3;
 
-    private (long Received, long Sent, long Timestamp)? _pendingSample;
+    private (long Received, long Sent, long Timestamp, SystemStatsReading Stats)? _pendingSample;
     private System.Threading.Timer? _timer;
     private long _lastTimestamp;
     private WidgetVisual _visual = WidgetVisual.Empty;
@@ -144,6 +147,10 @@ internal sealed class TaskbarWidget : LayeredWindow
     public TaskbarWidget(MonitorConfig config)
     {
         _config = config ?? throw new ArgumentNullException(nameof(config));
+        // The settings dialog mutates _config in place on the UI thread while the
+        // sample thread reads it, so the background thread gets its own consistent
+        // snapshot that is refreshed on every ApplyConfig.
+        _liveConfig = config.Clone();
 
         (long received, long sent) totals = _sampler.ReadTotals();
         _download.Seed(totals.received);
@@ -161,6 +168,20 @@ internal sealed class TaskbarWidget : LayeredWindow
 
     public event Action<Point>? MenuRequested;
 
+    /// <summary>
+    /// Raised on every sample tick with the one-line caption for the tray tooltip:
+    /// the traffic figures followed by the statistics, when any are shown.
+    /// </summary>
+    public event Action<string>? CaptionChanged;
+
+    /// <summary>The one-line caption for the tray tooltip.</summary>
+    internal static string BuildCaption(SystemStatsReading reading, double downloadRate, double uploadRate, MonitorConfig config)
+    {
+        string stats = SystemStats.JoinedText(reading, config);
+        string traffic = $"\u2193 {SpeedFormatter.Format(downloadRate)}  \u2191 {SpeedFormatter.Format(uploadRate)}";
+        return string.IsNullOrEmpty(stats) ? traffic : $"{traffic}  \u00b7  {stats}";
+    }
+
     private void OnShellEvent(IntPtr hook, uint eventId, IntPtr window,
         int objectId, int childId, uint threadId, uint time)
     {
@@ -175,6 +196,13 @@ internal sealed class TaskbarWidget : LayeredWindow
     public void ApplyConfig()
     {
         Interlocked.Increment(ref _configVersion);
+        // Refresh the background thread's snapshot of the config: every live dialog
+        // change mutates _config in place on the UI thread.
+        _liveConfig = _config.Clone();
+        // The statistics are not reset here: dropping the baseline and every held
+        // reading on every live settings change makes the chips vanish for a tick and
+        // makes every dialog edit re-prime the CPU counter. The held values age out
+        // naturally and re-arm on the next sample, which is enough.
         StartTimer();
         ForceRedraw();
     }
@@ -185,6 +213,10 @@ internal sealed class TaskbarWidget : LayeredWindow
         _scaler.Reset();
         _download.Reset();
         _upload.Reset();
+        lock (_statsGate)
+        {
+            _stats.Reset();
+        }
         ForceRedraw();
     }
 
@@ -435,7 +467,11 @@ internal sealed class TaskbarWidget : LayeredWindow
         return ShellSurface.CanNameActiveDesktop(foreground) ? foreground : IntPtr.Zero;
     }
 
-    /// <summary>Runs on a thread-pool thread: only cheap counter reads happen here.</summary>
+    /// <summary>
+    /// Runs on a thread-pool thread. Both the traffic totals and the system statistics
+    /// are sampled here - the figures and the chips travel in the same sample - so the
+    /// UI thread never waits on a PDH sweep or a network enumeration.
+    /// </summary>
     private void SampleOnce()
     {
         if (_stopped)
@@ -455,10 +491,30 @@ internal sealed class TaskbarWidget : LayeredWindow
             return;
         }
 
+        // The chips are sampled here too, on this thread, rather than on the UI thread:
+        // the GPU sweep is a chain of PDH queries that can take hundreds of milliseconds
+        // on a busy GPU, and the UI thread is not the place for that. The chips advance
+        // at exactly the same rate as the figures because they travel inside the same
+        // sample - every tick one reading feeds both.
+        SystemStatsReading stats;
+        try
+        {
+            lock (_statsGate)
+            {
+                stats = _stats.Sample(_liveConfig);
+            }
+        }
+        catch (Exception)
+        {
+            // A statistics failure must never kill the sample message: the figures
+            // still advance, the chips just show nothing.
+            stats = SystemStatsReading.Empty;
+        }
+
         long timestamp = Stopwatch.GetTimestamp();
         lock (_pendingGate)
         {
-            _pendingSample = (totals.Received, totals.Sent, timestamp);
+            _pendingSample = (totals.Received, totals.Sent, timestamp, stats);
         }
 
         IntPtr handle = HandleForPosting;
@@ -470,7 +526,7 @@ internal sealed class TaskbarWidget : LayeredWindow
 
     private void ConsumeSample()
     {
-        (long Received, long Sent, long Timestamp) sample;
+        (long Received, long Sent, long Timestamp, SystemStatsReading Stats) sample;
         lock (_pendingGate)
         {
             if (_pendingSample is null)
@@ -507,6 +563,8 @@ internal sealed class TaskbarWidget : LayeredWindow
         // Bars follow the scaled ratios, eased so a burst cannot slam them from full
         // width to a sliver and back on every tick. With SharedScale on, both ratios
         // come from one full-scale rate, so the rows stay comparable.
+        SystemStatsReading stats = sample.Stats;
+
         _downloadBar.Update(_scaler.BarRatio(isDownload: true, downloadRate), elapsed);
         _uploadBar.Update(_scaler.BarRatio(isDownload: false, uploadRate), elapsed);
 
@@ -514,7 +572,10 @@ internal sealed class TaskbarWidget : LayeredWindow
             downloadRate,
             uploadRate,
             _downloadBar.Current,
-            _uploadBar.Current);
+            _uploadBar.Current,
+            stats);
+
+        CaptionChanged?.Invoke(BuildCaption(stats, downloadRate, uploadRate, _config));
 
         Render();
     }
@@ -551,7 +612,7 @@ internal sealed class TaskbarWidget : LayeredWindow
             ? snapshot.TaskbarRect.Height
             : snapshot.TaskbarRect.Width;
 
-        WidgetLayout layout = _renderer.ComputeLayout(_config, snapshot.DpiScale, maxExtent);
+        WidgetLayout layout = _renderer.ComputeLayout(_config, snapshot.DpiScale, maxExtent, _visual.Stats);
         PixelRect? placement = layout.FitsBounds
             ? TaskbarGeometry.ComputePlacement(
                 snapshot.TaskbarRect,
@@ -583,7 +644,7 @@ internal sealed class TaskbarWidget : LayeredWindow
         PixelRect rect = placement!.Value;
         WidgetTheme theme = WidgetTheme.FromRegistry();
         PresentationState state = PresentationState.For(
-            _visual, layout, rect, theme.IsDark, _configVersion, snapshot.DpiScale);
+            _visual, layout, rect, _config, theme.IsDark, _configVersion, snapshot.DpiScale);
 
         if (!NeedsPresent(IsShown, _presented, state))
         {
@@ -915,11 +976,15 @@ internal sealed class TaskbarWidget : LayeredWindow
         /// <summary>Upload bar fill in whole pixels, exactly as drawn.</summary>
         public int DrawnUploadFillPx { get; init; }
 
+        /// <summary>The statistics line exactly as it would be drawn.</summary>
+        public string DrawnStatsText { get; init; } = string.Empty;
+
         /// <summary>Signature of everything the renderer will actually paint.</summary>
         public static PresentationState For(
             WidgetVisual visual,
             WidgetLayout layout,
             PixelRect rect,
+            MonitorConfig config,
             bool isDark,
             int configVersion,
             float dpiScale)
@@ -929,6 +994,7 @@ internal sealed class TaskbarWidget : LayeredWindow
                 DrawnUploadText = SpeedFormatter.FormatRow(false, visual.UploadBytesPerSecond),
                 DrawnDownloadFillPx = WidgetRenderer.FillWidth(layout.DownloadBar.Width, visual.DownloadRatio),
                 DrawnUploadFillPx = WidgetRenderer.FillWidth(layout.UploadBar.Width, visual.UploadRatio),
+                DrawnStatsText = SystemStats.JoinedText(visual.Stats, config),
             };
     }
 }

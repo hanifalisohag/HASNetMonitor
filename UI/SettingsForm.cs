@@ -37,6 +37,11 @@ internal sealed class SettingsForm : Form
     private readonly CheckBox _showBackdrop;
     private readonly CheckBox _crispText;
     private readonly CheckBox _startWithWindows;
+    private readonly CheckBox _showCpu;
+    private readonly CheckBox _showGpu;
+    private readonly CheckBox _showRam;
+    private readonly CheckBox _showDisk;
+    private readonly CheckBox _showBattery;
     private readonly CheckBox _bold;
     private readonly CheckBox _italic;
     private readonly CheckBox _roundedBars;
@@ -126,16 +131,16 @@ internal sealed class SettingsForm : Form
         ShowInTaskbar = false;
         AutoSize = true;
         AutoSizeMode = AutoSizeMode.GrowAndShrink;
-        Padding = new Padding(14, 14, 14, 10);
+        Padding = new Padding(10, 8, 10, 6);
         Font = new Font("Segoe UI", 9f);
 
         // The dialog is taller than a 768 px netbook screen once the preset row is in.
         // Capping the height and scrolling keeps OK reachable: a fixed dialog that cannot
         // shrink would hide its own buttons on such a screen. The groups are laid out in two
         // short columns so the whole form, Reset nudges included, fits above the footer
-        // without needing that scroll.
+        // without needing that scroll. The retained height rule is 740 px, so that is the cap.
         AutoScroll = true;
-        MaximumSize = new Size(1100, 720);
+        MaximumSize = new Size(1100, 740);
 
         _downloadColorButton = CreateColorButton("Download bar colour");
         _downloadColorButton.Click += (_, _) => PickColor(_downloadColorButton);
@@ -237,6 +242,12 @@ internal sealed class SettingsForm : Form
         };
 
         _startWithWindows = new CheckBox { Text = "Start with Windows", Checked = config.StartWithWindows, AutoSize = true };
+
+        _showCpu = new CheckBox { Text = "CPU", Checked = config.ShowCpu, AutoSize = true };
+        _showRam = new CheckBox { Text = "RAM", Checked = config.ShowRam, AutoSize = true };
+        _showGpu = new CheckBox { Text = "GPU", Checked = config.ShowGpu, AutoSize = true };
+        _showDisk = new CheckBox { Text = "Disk", Checked = config.ShowDisk, AutoSize = true };
+        _showBattery = new CheckBox { Text = "Battery (when on battery)", Checked = config.ShowBattery, AutoSize = true };
 
         List<Choice> styleChoices = [];
         foreach (string style in WidgetStyles.All)
@@ -341,17 +352,34 @@ internal sealed class SettingsForm : Form
         AddRow(colours, "Tint opacity:", _backdropOpacity);
         AddRow(colours, "Start-up:", _startWithWindows);
 
+        // The widget-chip checkboxes, laid out side by side in a bare row in the Colours
+        // column. They carry their own captions, so a group caption would repeat what the
+        // chips already say.
+        var statsChips = new FlowLayoutPanel
+        {
+            FlowDirection = FlowDirection.LeftToRight,
+            AutoSize = true,
+            AutoSizeMode = AutoSizeMode.GrowAndShrink,
+            AccessibleDescription = "Compact chips under the figures in the widget. They drop away "
+                + "when the taskbar is too short for them.",
+        };
+        statsChips.Controls.Add(_showCpu);
+        statsChips.Controls.Add(_showRam);
+        statsChips.Controls.Add(_showGpu);
+        statsChips.Controls.Add(_showDisk);
+        statsChips.Controls.Add(_showBattery);
+
         var columns = new TableLayoutPanel
         {
             ColumnCount = 2,
-            RowCount = 2,
+            RowCount = 3,
             AutoSize = true,
             AutoSizeMode = AutoSizeMode.GrowAndShrink,
             Dock = DockStyle.Fill,
         };
         columns.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
         columns.ColumnStyles.Add(new ColumnStyle(SizeType.AutoSize));
-        for (int row = 0; row < 2; row++)
+        for (int row = 0; row < 3; row++)
         {
             columns.RowStyles.Add(new RowStyle(SizeType.AutoSize));
         }
@@ -364,6 +392,10 @@ internal sealed class SettingsForm : Form
         columns.Controls.Add(position, 1, 0);
         columns.Controls.Add(look, 0, 1);
         columns.Controls.Add(colours, 1, 1);
+        // The widget-chip row sits in the Colours column, which is a row shorter than the
+        // Look column, so the chips do not stretch the form past the cap the footer rule
+        // names.
+        columns.Controls.Add(statsChips, 1, 2);
 
         var buttons = new FlowLayoutPanel
         {
@@ -372,7 +404,7 @@ internal sealed class SettingsForm : Form
             Dock = DockStyle.Fill,
             // A bottom margin as well as the top one: hugging the table's edge put the last
             // pixels of OK outside the visible client area.
-            Margin = new Padding(0, 12, 0, 8),
+            Margin = new Padding(0, 4, 0, 4),
         };
 
         var ok = new Button { Text = "OK", DialogResult = DialogResult.OK, AutoSize = true, MinimumSize = new Size(80, 26) };
@@ -412,7 +444,7 @@ internal sealed class SettingsForm : Form
             _accentGlow, _showText, _showBackdrop, _crispText, _sharedScale, _barThickness, _segmentGap,
             _fontSize, _nudgeX, _nudgeY, _offsetFromTray, _nudgeLeft, _nudgeRight, _nudgeUp, _nudgeDown,
             _resetNudge, _downloadTextMode, _uploadTextMode, _autoScale, _maxScale, _interval,
-            _backdropOpacity, _startWithWindows,
+            _backdropOpacity, _startWithWindows, _showCpu, _showRam, _showGpu, _showDisk, _showBattery,
         })
         {
             WireForLive(input);
@@ -546,6 +578,12 @@ internal sealed class SettingsForm : Form
         _italic.Checked = config.FontItalic;
         _roundedBars.Checked = config.RoundedBars;
         _accentGlow.Checked = config.AccentGlow;
+
+        _showCpu.Checked = config.ShowCpu;
+        _showRam.Checked = config.ShowRam;
+        _showGpu.Checked = config.ShowGpu;
+        _showDisk.Checked = config.ShowDisk;
+        _showBattery.Checked = config.ShowBattery;
 
         // Crisp text forces an opaque plate (ApplyCrispCoupling), so it is set before the
         // tint is, otherwise switching crisp text off would leave the previous preset's
@@ -885,6 +923,11 @@ internal sealed class SettingsForm : Form
             RoundedBars = _roundedBars.Checked,
             AccentGlow = _accentGlow.Checked,
             CrispText = _crispText.Checked,
+            ShowCpu = _showCpu.Checked,
+            ShowRam = _showRam.Checked,
+            ShowGpu = _showGpu.Checked,
+            ShowDisk = _showDisk.Checked,
+            ShowBattery = _showBattery.Checked,
         }.Normalize();
     }
 

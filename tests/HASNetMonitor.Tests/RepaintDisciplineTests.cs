@@ -124,15 +124,15 @@ public class RepaintDisciplineTests
         var rect = new PixelRect(1614, 1034, layout.Size.Width, layout.Size.Height);
 
         TaskbarWidget.PresentationState first = TaskbarWidget.PresentationState.For(
-            new WidgetVisual(10_000_000, 40_000, 0.5000, 0.2500), layout, rect, true, 1, 1f);
+            new WidgetVisual(10_000_000, 40_000, 0.5000, 0.2500), layout, rect, config, true, 1, 1f);
         TaskbarWidget.PresentationState wobbled = TaskbarWidget.PresentationState.For(
-            new WidgetVisual(10_000_100, 40_010, 0.5001, 0.2501), layout, rect, true, 1, 1f);
+            new WidgetVisual(10_000_100, 40_010, 0.5001, 0.2501), layout, rect, config, true, 1, 1f);
 
         Assert.Equal(first, wobbled);
         Assert.False(TaskbarWidget.NeedsPresent(isShown: true, presented: first, wobbled));
 
         TaskbarWidget.PresentationState grown = TaskbarWidget.PresentationState.For(
-            new WidgetVisual(9_900_000, 40_000, 0.95, 0.2500), layout, rect, true, 1, 1f);
+            new WidgetVisual(9_900_000, 40_000, 0.95, 0.2500), layout, rect, config, true, 1, 1f);
 
         Assert.NotEqual(first, grown);
         Assert.True(TaskbarWidget.NeedsPresent(isShown: true, presented: first, grown));
@@ -157,6 +157,7 @@ public class RepaintDisciplineTests
                 new WidgetVisual(10_000_000 * jitter, 5_000_000 * jitter, 0.5, 0.25),
                 layout,
                 rect,
+                config,
                 true,
                 1,
                 1f);

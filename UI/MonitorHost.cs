@@ -37,6 +37,7 @@ internal sealed class MonitorHost : ApplicationContext
         _menu = BuildMenu();
         _widget = new TaskbarWidget(_config);
         _widget.MenuRequested += ShowMenuAt;
+        _widget.CaptionChanged += UpdateCaption;
 
         _trayIcon = CreateTrayIcon();
 
@@ -51,6 +52,26 @@ internal sealed class MonitorHost : ApplicationContext
     {
         ExitThread();
     }
+
+    /// <summary>
+    /// Narrows the tray tooltip to the one-line caption the widget just sampled:
+    /// the traffic figures followed by the statistics. The tray text length is
+    /// capped by the shell at about 127 characters, so it is truncated honestly.
+    /// </summary>
+    private void UpdateCaption(string caption)
+    {
+        if (_trayIcon is null || string.IsNullOrEmpty(caption))
+        {
+            return;
+        }
+
+        string text = caption.Length <= 127 ? caption : caption.Substring(0, 124) + "...";
+        if (_trayIcon.Text != text)
+        {
+            _trayIcon.Text = text;
+        }
+    }
+
 
     private ContextMenuStrip BuildMenu()
     {

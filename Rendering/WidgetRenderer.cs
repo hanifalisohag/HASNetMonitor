@@ -13,9 +13,10 @@ internal readonly record struct WidgetVisual(
     double DownloadBytesPerSecond,
     double UploadBytesPerSecond,
     double DownloadRatio,
-    double UploadRatio)
+    double UploadRatio,
+    SystemStatsReading Stats = default)
 {
-    public static WidgetVisual Empty { get; } = new(0, 0, 0, 0);
+    public static WidgetVisual Empty { get; } = new(0, 0, 0, 0, SystemStatsReading.Empty);
 }
 
 /// <summary>
@@ -72,6 +73,36 @@ internal readonly record struct WidgetLayout(
 
     /// <summary>The arrow style the layout was measured with, so drawing matches it.</summary>
     public string ArrowStyle { get; init; } = ArrowStyles.Classic;
+
+    /// <summary>
+    /// The chips on the left of the figures, one column every two items and at most two
+    /// chips per column, filled top-down: the first column carries the two first items
+    /// (CPU, RAM), the next the following two, and so on. Chips sit beside the download
+    /// and upload rows, centred on their baselines, so they never push the traffic out
+    /// of the bar. Zero columns means the config asks for nothing and no chip is drawn.
+    /// </summary>
+    public int StatsColumns { get; init; } = 0;
+
+    /// <summary>Height of one chip line in whole pixels; the chip font is built from the same em size.</summary>
+    public int StatsChipHeight { get; init; } = 0;
+
+    /// <summary>Y of the line the first-row chips are painted on, in the widget's own coordinates.</summary>
+    public int StatsRowTop { get; init; } = 0;
+
+    /// <summary>Y of the line the second-row chips are painted on, in the widget's own coordinates.</summary>
+    public int StatsRowBottom { get; init; } = 0;
+
+    /// <summary>Left edge of each chip column, in the widget's own coordinates.</summary>
+    public int[] StatsColumnX { get; init; } = [];
+
+    /// <summary>Width of each chip column. Every column is wide enough for the widest chip in it.</summary>
+    public int[] StatsColumnWidths { get; init; } = [];
+
+    /// <summary>Total width of the chip block, including the gaps between the columns.</summary>
+    public int StatsBlockWidth { get; init; } = 0;
+
+    /// <summary>Em size the chips were measured with; the font is built from it.</summary>
+    public int StatsEmPixels { get; init; } = 0;
 }
 
 /// <summary>
@@ -153,7 +184,7 @@ internal sealed class WidgetRenderer
     /// <summary>Whether a family carries a code point, keyed by family and glyph.</summary>
     private static readonly ConcurrentDictionary<string, bool> ArrowAvailability = new();
 
-    public WidgetLayout ComputeLayout(MonitorConfig config, float scale, int maxHeight)
+    public WidgetLayout ComputeLayout(MonitorConfig config, float scale, int maxHeight, SystemStatsReading stats = default)
     {
         if (scale <= 0 || float.IsNaN(scale) || float.IsInfinity(scale))
         {
@@ -187,11 +218,70 @@ internal sealed class WidgetRenderer
         using var measureSurface = new Bitmap(1, 1, PixelFormat.Format32bppPArgb);
         using var measureGraphics = Graphics.FromImage(measureSurface);
 
+        // The chips ride on the left of the figures, sized from the same em the figures
+        // use - they are this widget's optional statistics, never something that pushes
+        // the traffic out of the bar. When the config asks for statistics but nothing is
+        // available to draw, no chip block is reserved.
+        bool statsWanted = config.AnyStatsEnabled
+            && config.ShowText
+            && SystemStats.BuildItems(stats, config).Length > 0;
+        StatsItem[] statsItems = statsWanted ? SystemStats.BuildItems(stats, config) : [];
+        int chipColumnGap = Math.Max(2, (int)Math.Round(2.5f * scale));
+        int chipTextGap = Math.Max(2, (int)Math.Round(3 * scale));
+        int chipGapAfterDot = Math.Max(1, (int)Math.Round(2 * scale));
+        int chipDotPx = Math.Max(3, (int)Math.Round(4 * scale));
+
         for (int attempt = 0; ; attempt++)
         {
             using Font font = CreateFont(emPixels, config);
             int textHeight = Math.Max(1, (int)Math.Ceiling(font.GetHeight(measureGraphics)));
             int contentWidth = Math.Max(1, (int)Math.Ceiling(MeasureWidestProbe(measureGraphics, font, scale, arrowPercent, textHeight, ArrowStyles.Normalize(config.ArrowStyle))));
+
+            bool showChips = statsItems.Length > 0;
+            // The chips are drawn at exactly the same em as the figures, so the widget reads
+            // as one block of type - the traffic numbers and the statistics carry the same
+            // font, size and weight.
+            int statsEm = showChips ? emPixels : 0;
+            int chipHeight = 0;
+            int[] columnX = [];
+            int[] columnWidths = [];
+            int statsBlockWidth = 0;
+            if (showChips)
+            {
+                using Font statsFont = CreateFont(statsEm, config);
+                chipHeight = Math.Max(1, (int)Math.Ceiling(statsFont.GetHeight(measureGraphics)));
+
+                using var chipFormat = CreateTightFormat();
+                float[] chipWidths = new float[statsItems.Length];
+                for (int i = 0; i < statsItems.Length; i++)
+                {
+                    chipWidths[i] = chipDotPx + chipGapAfterDot + measureGraphics.MeasureString(
+                        statsItems[i].Text, statsFont, PointF.Empty, chipFormat).Width;
+                }
+
+                // Columns are filled top-down, two chips per column at most.
+                int columns = (statsItems.Length + 1) / 2;
+                columnWidths = new int[columns];
+                for (int c = 0; c < columns; c++)
+                {
+                    for (int i = c * 2; i < Math.Min((c + 1) * 2, statsItems.Length); i++)
+                    {
+                        columnWidths[c] = Math.Max(columnWidths[c], (int)Math.Ceiling(chipWidths[i]));
+                    }
+                }
+                columnX = new int[columns];
+                int x = paddingX;
+                for (int c = 0; c < columns; c++)
+                {
+                    columnX[c] = x;
+                    x += columnWidths[c] + chipColumnGap;
+                }
+                statsBlockWidth = columns > 0 ? x - chipColumnGap - paddingX : 0;
+            }
+
+            // The chip block sits on the left, so everything else - the figures and the
+            // bars - starts one chip-block width plus a gap to its right.
+            int textLeft = paddingX + (showChips ? statsBlockWidth + chipTextGap : 0);
 
             int height;
             int width;
@@ -209,22 +299,28 @@ internal sealed class WidgetRenderer
                         barThickness,
                         Math.Max(barThickness, maxHeightPx - (paddingY * 2)));
                 height = paddingY + barHeight + paddingY;
-                width = paddingX + (config.ShowText ? contentWidth + barGap : 0) + barsWidth + paddingX;
+                width = textLeft + (config.ShowText ? contentWidth + barGap : 0) + barsWidth + paddingX;
             }
             else
             {
                 int rowBlock = textHeight + barGap + barThickness;
                 height = paddingY + rowBlock + rowGap + rowBlock + paddingY;
-                width = contentWidth + (paddingX * 2);
+                width = textLeft + contentWidth + paddingX;
             }
 
             bool tooTall = height > maxHeightPx;
-            bool canShrink = tooTall && emPixels > floorEmPixels && attempt < 64;
-            if (canShrink)
+            if (tooTall)
             {
-                // One pixel at a time: the next size down must still be a whole size.
-                emPixels--;
-                continue;
+                // The figures are what a tight taskbar shrinks first. The chips ride
+                // along with the figures, so nothing is dropped to make room - at the
+                // floor the layout reports itself honestly as overflowing.
+                bool canShrink = emPixels > floorEmPixels && attempt < 64;
+                if (canShrink)
+                {
+                    // One pixel at a time: the next size down must still be a whole size.
+                    emPixels--;
+                    continue;
+                }
             }
 
             // Reported in points for the self-test and the docs, but it is the pixel
@@ -237,10 +333,25 @@ internal sealed class WidgetRenderer
             WidgetLayout layout = vertical
                 ? BuildSidebarLayout(
                     config, style, uploadOnTop, new Size(width, height), contentWidth, textHeight,
-                    barThickness, barGap, reportedPoints, paddingX, paddingY, rowGap, scale, maxHeightPx)
+                    barThickness, barGap, reportedPoints, paddingX, paddingY, rowGap, scale, maxHeightPx,
+                    textLeft)
                 : BuildRowsLayout(
                     style, uploadOnTop, new Size(width, height), contentWidth, textHeight,
-                    barThickness, barGap, reportedPoints, paddingX, paddingY, rowGap, scale, maxHeightPx);
+                    barThickness, barGap, reportedPoints, paddingX, paddingY, rowGap, scale, maxHeightPx,
+                    textLeft);
+
+            // The chips are centred on the two figure text rows, beside the figures,
+            // one column every two items and at most two chips per column.
+            int chipRow0Y = 0;
+            int chipRow1Y = 0;
+            if (showChips)
+            {
+                int firstRowY = Math.Min(layout.DownloadText.Y, layout.UploadText.Y);
+                int secondRowY = Math.Max(layout.DownloadText.Y, layout.UploadText.Y);
+                int chipOffset = Math.Max(0, (textHeight - chipHeight) / 2);
+                chipRow0Y = firstRowY + chipOffset;
+                chipRow1Y = secondRowY + chipOffset;
+            }
 
             return layout with
             {
@@ -248,6 +359,14 @@ internal sealed class WidgetRenderer
                 FontEmPixels = emPixels,
                 ArrowSizePercent = arrowPercent,
                 ArrowStyle = ArrowStyles.Normalize(config.ArrowStyle),
+                StatsColumns = showChips ? columnX.Length : 0,
+                StatsChipHeight = chipHeight,
+                StatsRowTop = chipRow0Y,
+                StatsRowBottom = chipRow1Y,
+                StatsColumnX = columnX,
+                StatsColumnWidths = columnWidths,
+                StatsBlockWidth = statsBlockWidth,
+                StatsEmPixels = statsEm,
             };
         }
     }
@@ -265,16 +384,17 @@ internal sealed class WidgetRenderer
         int paddingY,
         int rowGap,
         float scale,
-        int maxHeightPx)
+        int maxHeightPx,
+        int textLeft)
     {
         int y = paddingY;
-        var firstText = new Rectangle(paddingX, y, contentWidth, textHeight);
+        var firstText = new Rectangle(textLeft, y, contentWidth, textHeight);
         y += textHeight + barGap;
-        var firstBar = new Rectangle(paddingX, y, contentWidth, barThickness);
+        var firstBar = new Rectangle(textLeft, y, contentWidth, barThickness);
         y += barThickness + rowGap;
-        var secondText = new Rectangle(paddingX, y, contentWidth, textHeight);
+        var secondText = new Rectangle(textLeft, y, contentWidth, textHeight);
         y += textHeight + barGap;
-        var secondBar = new Rectangle(paddingX, y, contentWidth, barThickness);
+        var secondBar = new Rectangle(textLeft, y, contentWidth, barThickness);
 
         return new WidgetLayout(
             size,
@@ -309,7 +429,8 @@ internal sealed class WidgetRenderer
         int paddingY,
         int rowGap,
         float scale,
-        int maxHeightPx)
+        int maxHeightPx,
+        int textLeft)
     {
         int barHeight = Math.Max(1, size.Height - (paddingY * 2));
         int barsWidth = (barThickness * 2) + barGap;
@@ -322,10 +443,12 @@ internal sealed class WidgetRenderer
         Rectangle uploadText = Rectangle.Empty;
         if (config.ShowText)
         {
+            // The chips sit beside the figures, so the text column is centred in the
+            // full bar height - nothing is reserved away for a line below it.
             int textBlock = (textHeight * 2) + rowGap;
             int textTop = paddingY + Math.Max(0, (barHeight - textBlock) / 2);
-            var firstText = new Rectangle(paddingX, textTop, contentWidth, textHeight);
-            var secondText = new Rectangle(paddingX, textTop + textHeight + rowGap, contentWidth, textHeight);
+            var firstText = new Rectangle(textLeft, textTop, contentWidth, textHeight);
+            var secondText = new Rectangle(textLeft, textTop + textHeight + rowGap, contentWidth, textHeight);
             (downloadText, uploadText) = uploadOnTop ? (secondText, firstText) : (firstText, secondText);
         }
 
@@ -647,6 +770,75 @@ internal sealed class WidgetRenderer
 
         DrawRowText(graphics, font, format, layout.DownloadText, config.DownloadColor, downloadTextBrush, isDownload: true, visual.DownloadBytesPerSecond, layout.Scale, layout.ArrowSizePercent, layout.ArrowStyle);
         DrawRowText(graphics, font, format, layout.UploadText, config.UploadColor, uploadTextBrush, isDownload: false, visual.UploadBytesPerSecond, layout.Scale, layout.ArrowSizePercent, layout.ArrowStyle);
+
+        // The chips on the left: a column every two items, at most two chips per
+        // column, filled top-down, centred on the two figure text rows. Anything that
+        // would leave the widget is dropped rather than clipped.
+        if (layout.StatsColumns > 0 && layout.StatsEmPixels > 0)
+        {
+            DrawChips(graphics, layout, visual, config, taskbarText, format);
+        }
+    }
+
+    /// <summary>
+    /// Paints the chips on the left of the figures. A chip is a coloured dot and its
+    /// text; dots keep the traffic colours reserved for traffic, so the block reads as
+    /// a distinct layer. Chips sit beside the figures - never under them - and never
+    /// push the traffic out of the bar.
+    /// </summary>
+    private static void DrawChips(
+        Graphics graphics,
+        WidgetLayout layout,
+        WidgetVisual visual,
+        MonitorConfig config,
+        Color textColor,
+        StringFormat format)
+    {
+        StatsItem[] items = SystemStats.BuildItems(visual.Stats, config);
+        if (items.Length == 0)
+        {
+            return;
+        }
+
+        using Font statsFont = CreateFont(layout.StatsEmPixels, config);
+        float scale = layout.Scale;
+        float dot = Math.Max(3f, (float)Math.Round(4 * scale));
+        float gapAfterDot = Math.Max(1f, (float)Math.Round(2 * scale));
+
+        float chipHeight = Math.Max(1f, (float)layout.StatsChipHeight);
+
+        for (int i = 0; i < items.Length; i++)
+        {
+            int column = i / 2;
+            int row = i % 2;
+            if (column >= layout.StatsColumnX.Length)
+            {
+                break; // defensive: the layout was computed from the same items
+            }
+
+            float chipX = layout.StatsColumnX[column];
+            float chipWidth = dot + gapAfterDot + graphics.MeasureString(items[i].Text, statsFont, PointF.Empty, format).Width;
+
+            // A chip that does not fit is dropped, not clipped: the figure is never
+            // short-changed to make a stat legible.
+            if (chipX + chipWidth > layout.Size.Width)
+            {
+                continue;
+            }
+
+            float chipY = row == 0 ? layout.StatsRowTop : layout.StatsRowBottom;
+            float dotY = chipY + (chipHeight - dot) / 2f;
+
+            using (var dotBrush = new SolidBrush(items[i].Dot))
+            {
+                graphics.FillEllipse(dotBrush, chipX, dotY, dot, dot);
+            }
+
+            using (var textBrush = new SolidBrush(textColor))
+            {
+                graphics.DrawString(items[i].Text, statsFont, textBrush, chipX + dot + gapAfterDot, chipY, format);
+            }
+        }
     }
 
     /// <summary>

@@ -139,6 +139,25 @@ internal sealed class MonitorConfig
     /// </summary>
     public bool StartWithWindows { get; set; } = true;
 
+    /// <summary>Show the CPU chip in the widget.</summary>
+    public bool ShowCpu { get; set; }
+
+    /// <summary>Show the GPU chip in the widget. Hides itself when no GPU counter resolves.</summary>
+    public bool ShowGpu { get; set; }
+
+    /// <summary>Show the RAM chip in the widget.</summary>
+    public bool ShowRam { get; set; }
+
+    /// <summary>Show the free-space chip for the system drive in the widget.</summary>
+    public bool ShowDisk { get; set; }
+
+    /// <summary>Show the battery chip while on battery power.</summary>
+    public bool ShowBattery { get; set; }
+
+    /// <summary>Whether any statistic chip is wanted at all.</summary>
+    [JsonIgnore]
+    public bool AnyStatsEnabled => ShowCpu || ShowGpu || ShowRam || ShowDisk || ShowBattery;
+
     public static string DefaultConfigPath => Path.Combine(
         Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData),
         "HASNetMonitor",
@@ -184,6 +203,8 @@ internal sealed class MonitorConfig
         ArrowSizePercent = 150,
         CrispText = false,
         StartWithWindows = true,
+        ShowCpu = true,
+        ShowRam = true,
     };
 
     public static string LegacyConfigPath => Path.Combine(AppContext.BaseDirectory, "config.json");
@@ -248,6 +269,11 @@ internal sealed class MonitorConfig
         ArrowSizePercent = ArrowSizePercent,
         CrispText = CrispText,
         StartWithWindows = StartWithWindows,
+        ShowCpu = ShowCpu,
+        ShowGpu = ShowGpu,
+        ShowRam = ShowRam,
+        ShowDisk = ShowDisk,
+        ShowBattery = ShowBattery,
     };
 
     /// <summary>
@@ -291,6 +317,11 @@ internal sealed class MonitorConfig
         ArrowSizePercent = other.ArrowSizePercent;
         CrispText = other.CrispText;
         StartWithWindows = other.StartWithWindows;
+        ShowCpu = other.ShowCpu;
+        ShowGpu = other.ShowGpu;
+        ShowRam = other.ShowRam;
+        ShowDisk = other.ShowDisk;
+        ShowBattery = other.ShowBattery;
         Normalize();
     }
 

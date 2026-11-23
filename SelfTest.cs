@@ -260,6 +260,32 @@ internal static class SelfTest
                 + $"dpi={snapshot.DpiScale:0.##} widget={layout.Size.Width}x{layout.Size.Height} "
                 + $"font={layout.FontSizePoints:0.##}pt maxExtent={maxExtent}");
 
+            // The chip block beside the figures: a synthetic reading so the live
+            // report shows what the real widget will carry, never a live sample.
+            var chipConfig = new MonitorConfig().Normalize();
+            chipConfig.ShowCpu = true;
+            chipConfig.ShowRam = true;
+            chipConfig.ShowGpu = true;
+            chipConfig.ShowDisk = true;
+            chipConfig.ShowBattery = true;
+            SystemStatsReading chipReading = new(
+                42.0,
+                71.0,
+                55.0,
+                107_374_182_400L,
+                new DiskMonitor.DiskReading("C:\\", 107_374_182_400L, 200_000_000_000L),
+                new BatteryMonitor.BatteryReading(true, 67, false));
+            WidgetLayout chipLayout = renderer.ComputeLayout(chipConfig, snapshot.DpiScale, maxExtent, chipReading);
+            writer.WriteLine(
+                $"[info] chips={chipLayout.StatsColumns} columns block={chipLayout.StatsBlockWidth}px "
+                + $"row1={chipLayout.StatsRowTop}px row2={chipLayout.StatsRowBottom}px");
+
+            Check("layout: the chip block stays left of the figures and inside the widget", () =>
+                chipLayout.StatsColumns > 0
+                && chipLayout.StatsBlockWidth <= chipLayout.DownloadText.X
+                && chipLayout.DownloadText.Right <= chipLayout.Size.Width
+                && chipLayout.StatsRowBottom + chipLayout.StatsChipHeight <= chipLayout.Size.Height);
+
             Check("layout: widget fits the taskbar height", () => layout.Size.Height <= maxExtent);
             Check("layout: widget fits the taskbar", () =>
                 TaskbarGeometry.ComputePlacement(

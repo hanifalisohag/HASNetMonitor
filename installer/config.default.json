@@ -28,5 +28,10 @@
   "AccentGlow": false,
   "ArrowSizePercent": 150,
   "CrispText": false,
-  "StartWithWindows": true
+  "StartWithWindows": true,
+  "ShowCpu": true,
+  "ShowGpu": false,
+  "ShowRam": true,
+  "ShowDisk": false,
+  "ShowBattery": false
 }
