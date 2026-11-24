@@ -3,7 +3,7 @@
 ; Build it by hand with:
 ;   dotnet publish HASNetMonitor.csproj -c Release -f net48 -o publish
 ;   "%LOCALAPPDATA%\Programs\Inno Setup 6\ISCC.exe" installer\HASNetMonitor.iss
-; which writes installer\Output\HASNetMonitor-Setup-<version>.exe
+; which writes installer\Output\HASNetMonitor-Setup.exe
 ; The second line is cmd.exe syntax; in PowerShell it is
 ;   & "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe" installer\HASNetMonitor.iss
 ; because %VAR% is not expanded there and a quoted path needs the & operator.
@@ -60,7 +60,7 @@ ArchitecturesAllowed=x64compatible
 ; is the in-box version from 1903 onwards.
 MinVersion=10.0.18362
 OutputDir={#OutputDir}
-OutputBaseFilename=HASNetMonitor-Setup-{#AppVersion}
+OutputBaseFilename=HASNetMonitor-Setup
 SetupIconFile=..\Assets\HASNetMonitor.ico
 Compression=lzma2/max
 SolidCompression=yes

@@ -194,13 +194,21 @@ public class ReadmeInstallerTests
     }
 
     [Fact]
-    public void TheReadmeNamesTheSetupFileTheProjectVersionProduces()
+    public void TheReadmeNamesTheSetupFileTheScriptProduces()
     {
-        // Both the wizard and the file name come from {#AppVersion}; naming a version the
-        // script would not write sends the reader looking for a file that is not there.
-        string expected = $"HASNetMonitor-Setup-{ProjectVersion()}.exe";
+        // The output name is version-less, so the README must name it exactly as the script
+        // writes it; a versioned name sends the reader looking for a file that is not there.
+        Assert.Contains("HASNetMonitor-Setup.exe", Section(), StringComparison.Ordinal);
 
-        Assert.Contains(expected, Section(), StringComparison.Ordinal);
+        // The output name is exactly the stable one: a versioned suffix would break the
+        // README's direct link, so match the whole line, not a prefix of it.
+        string outputLine = Iss()
+            .Split('\n')
+            .Select(l => l.TrimEnd('\r'))
+            .First(l => l.StartsWith("OutputBaseFilename=", StringComparison.Ordinal));
+        Assert.Equal("OutputBaseFilename=HASNetMonitor-Setup", outputLine);
+
+        // The version still drives the wizard, so the script keeps reading it from <Version>.
         Assert.Contains($"#define AppVersion \"{ProjectVersion()}\"", Iss(), StringComparison.Ordinal);
 
         AssertSectionInvariants();
@@ -216,6 +224,6 @@ public class ReadmeInstallerTests
         Assert.Contains("& \"$env:LOCALAPPDATA\\Programs\\Inno Setup 6\\ISCC.exe\"", header, StringComparison.Ordinal);
 
         // And it still states where the result lands.
-        Assert.Contains(@"installer\Output\HASNetMonitor-Setup-<version>.exe", header, StringComparison.Ordinal);
+        Assert.Contains(@"installer\Output\HASNetMonitor-Setup.exe", header, StringComparison.Ordinal);
     }
 }

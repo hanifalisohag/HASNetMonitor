@@ -201,12 +201,17 @@ public class InstallerAndWorkflowTests
     public void TheWorkflowUploadsTheSetupExeItNamedInTheScript()
     {
         string workflow = Workflow(out _);
-        string baseName = "OutputBaseFilename=HASNetMonitor-Setup-{#AppVersion}";
 
-        Assert.Contains(baseName, Iss, StringComparison.Ordinal);
+        // The output name is exactly the stable one: a versioned suffix would break the
+        // README's direct link, so match the whole line, not a prefix of it.
+        string outputLine = Iss
+            .Split('\n')
+            .Select(l => l.TrimEnd('\r'))
+            .First(l => l.StartsWith("OutputBaseFilename=", StringComparison.Ordinal));
+        Assert.Equal("OutputBaseFilename=HASNetMonitor-Setup", outputLine);
 
-        // The artefact glob must match OutputBaseFilename, or the job uploads nothing.
-        Assert.Contains("installer/Output/HASNetMonitor-Setup-*.exe", workflow, StringComparison.Ordinal);
+        // The artefact path must match OutputBaseFilename, or the job uploads nothing.
+        Assert.Contains("installer/Output/HASNetMonitor-Setup.exe", workflow, StringComparison.Ordinal);
 
         // And a missing exe must fail the job rather than upload an empty artefact.
         Assert.Contains("if-no-files-found: error", workflow, StringComparison.Ordinal);
@@ -415,7 +420,7 @@ public class ReleaseWorkflowTests
         string version = ProjectVersion();
 
         Assert.Contains("gh release create $tag $setup", workflow, StringComparison.Ordinal);
-        Assert.Contains("HASNetMonitor-Setup-$env:APP_VERSION.exe", workflow, StringComparison.Ordinal);
+        Assert.Contains("HASNetMonitor-Setup.exe", workflow, StringComparison.Ordinal);
 
         // Re-running without a version bump hits an existing tag; that must not be fatal.
         Assert.Contains("--clobber", workflow, StringComparison.Ordinal);

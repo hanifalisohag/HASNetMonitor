@@ -117,14 +117,14 @@ jobs:
       - name: Check the installer output
         shell: pwsh
         run: |
-          $setup = "installer\Output\HASNetMonitor-Setup-$env:APP_VERSION.exe"
+          $setup = "installer\Output\HASNetMonitor-Setup.exe"
           if (-not (Test-Path $setup)) { throw "ISCC did not produce $setup" }
           Write-Host ("{0:N0} bytes" -f (Get-Item $setup).Length)
 
       - uses: actions/upload-artifact@v4
         with:
-          name: HASNetMonitor-Setup-${{ env.APP_VERSION }}
-          path: installer/Output/HASNetMonitor-Setup-*.exe
+          name: HASNetMonitor-Setup
+          path: installer/Output/HASNetMonitor-Setup.exe
           if-no-files-found: error
 
       # The artifact above is only reachable from this run while signed in and expires.
@@ -135,13 +135,13 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           $tag = "v$env:APP_VERSION"
-          $setup = "installer\Output\HASNetMonitor-Setup-$env:APP_VERSION.exe"
+          $setup = "installer\Output\HASNetMonitor-Setup.exe"
           if (-not (Test-Path $setup)) { throw "no Setup to publish: $setup" }
 
           $notes = @"
           HAS NetMonitor $env:APP_VERSION - single-file Setup for Windows 10 1903+ and Windows 11.
 
-          Download HASNetMonitor-Setup-$env:APP_VERSION.exe and run it. Setup is per-user, so it
+          Download HASNetMonitor-Setup.exe and run it. Setup is per-user, so it
           needs no admin rights, and there is no runtime to download: the app targets the .NET
           Framework 4.8 that Windows already has.
 
@@ -176,7 +176,7 @@ jobs:
           # Prove the asset is attached rather than trusting the exit code.
           $assets = gh release view $tag --json assets --jq '.assets[].name'
           if ($LASTEXITCODE -ne 0) { throw "could not read back release $tag" }
-          if ($assets -notcontains "HASNetMonitor-Setup-$env:APP_VERSION.exe") {
+          if ($assets -notcontains "HASNetMonitor-Setup.exe") {
             throw "release $tag does not carry the Setup exe; got: $assets"
           }
           Write-Host "release $tag carries $(Split-Path -Leaf $setup)"
