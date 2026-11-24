@@ -13,10 +13,10 @@ internal sealed class MonitorHost : ApplicationContext
     private readonly MonitorConfig _config;
     private readonly string _configPath;
     private readonly TaskbarWidget _widget;
-    private readonly ContextMenuStrip _menu;
+    private readonly ContextMenuStrip _trayMenu;
     private NotifyIcon? _trayIcon;
     private Icon? _trayMark;
-    private bool _modalOpen;
+    private SettingsForm? _settingsForm;
     private bool _disposed;
 
     public MonitorHost()
@@ -34,10 +34,13 @@ internal sealed class MonitorHost : ApplicationContext
             _config.TrySave(_configPath);
         }
 
-        _menu = BuildMenu();
         _widget = new TaskbarWidget(_config);
-        _widget.MenuRequested += ShowMenuAt;
         _widget.CaptionChanged += UpdateCaption;
+
+        // The tray icon's menu is owned by the widget so the popup never gets a taskbar
+        // button of its own; the widget must exist first to hand over its handle. The
+        // widget itself shows no menu: a right-click on it does nothing.
+        _trayMenu = BuildMenu(_widget.WindowHandle);
 
         _trayIcon = CreateTrayIcon();
 
@@ -85,9 +88,9 @@ internal sealed class MonitorHost : ApplicationContext
     }
 
 
-    private ContextMenuStrip BuildMenu()
+    private ContextMenuStrip BuildMenu(IntPtr owner)
     {
-        var menu = new ContextMenuStrip();
+        var menu = new OwnedContextMenuStrip(owner);
 
         var settings = new ToolStripMenuItem("Settings\u2026");
         settings.Click += (_, _) => ShowSettings();
@@ -182,7 +185,12 @@ internal sealed class MonitorHost : ApplicationContext
         menu.Opening += (_, _) =>
         {
             startup.Checked = _config.StartWithWindows;
-            settings.Enabled = !_modalOpen;
+
+            // Settings stays enabled while its dialog is open: choosing it again must
+            // bring the dialog back to the front, not be a dead entry. The label says
+            // which of the two it will do.
+            settings.Text = _settingsForm is null ? "Settings\u2026" : "Show settings";
+            settings.Enabled = true;
 
             foreach (ToolStripItem item in look.DropDownItems)
             {
@@ -224,32 +232,26 @@ internal sealed class MonitorHost : ApplicationContext
         _widget.ApplyConfig();
     }
 
-    private void ShowMenuAt(Point screenPoint)
-    {
-        if (_disposed || _modalOpen)
-        {
-            return;
-        }
-
-        _menu.Show(screenPoint);
-
-        // A no-activate window never owns the foreground, so the popup needs a nudge
-        // to dismiss itself when the user clicks elsewhere.
-        NativeMethods.SetForegroundWindow(_menu.Handle);
-    }
-
     private void ShowSettings()
     {
-        if (_disposed || _modalOpen)
+        if (_disposed)
         {
             return;
         }
 
-        _modalOpen = true;
+        // Already open: bring it back to the front instead of ignoring the click. The
+        // dialog can end up behind other windows, and the tray menu must always be able
+        // to raise it again.
+        if (_settingsForm is { } open)
+        {
+            BringToFront(open);
+            return;
+        }
+
+        var form = new SettingsForm(_config.Clone());
+        _settingsForm = form;
         try
         {
-            using var form = new SettingsForm(_config.Clone());
-
             // Keep the pre-dialog state so Cancel can put the widget back exactly as
             // it was, even though every change was already applied live.
             MonitorConfig original = _config.Clone();
@@ -274,8 +276,29 @@ internal sealed class MonitorHost : ApplicationContext
         }
         finally
         {
-            _modalOpen = false;
+            _settingsForm = null;
+            form.Dispose();
         }
+    }
+
+    /// <summary>
+    /// Raises an already-open dialog above whatever is covering it. A minimised window
+    /// is restored first, because activating a minimised window leaves it minimised.
+    /// </summary>
+    private static void BringToFront(Form form)
+    {
+        if (form.WindowState == FormWindowState.Minimized)
+        {
+            form.WindowState = FormWindowState.Normal;
+        }
+
+        form.Activate();
+        form.BringToFront();
+
+        // Activate alone can be refused when another application owns the foreground, so
+        // ask the shell directly. The dialog is a normal window, so this is the one place
+        // a foreground call is wanted: it is what actually raises the buried dialog.
+        NativeMethods.SetForegroundWindow(form.Handle);
     }
 
     /// <summary>
@@ -327,21 +350,13 @@ internal sealed class MonitorHost : ApplicationContext
 
     private void ShowAbout()
     {
-        if (_disposed || _modalOpen)
+        if (_disposed || _settingsForm is not null)
         {
             return;
         }
 
-        _modalOpen = true;
-        try
-        {
-            using var form = new AboutForm();
-            form.ShowDialog();
-        }
-        finally
-        {
-            _modalOpen = false;
-        }
+        using var form = new AboutForm();
+        form.ShowDialog();
     }
 
     private NotifyIcon? CreateTrayIcon()
@@ -361,7 +376,7 @@ internal sealed class MonitorHost : ApplicationContext
                 // it cannot drift from the About box.
                 Text = AppInfo.Name,
                 Visible = true,
-                ContextMenuStrip = _menu,
+                ContextMenuStrip = _trayMenu,
             };
             tray.DoubleClick += (_, _) => ShowSettings();
             return tray;
@@ -399,7 +414,7 @@ internal sealed class MonitorHost : ApplicationContext
             _trayMark = null;
 
             _widget.Dispose();
-            _menu.Dispose();
+            _trayMenu.Dispose();
         }
 
         base.Dispose(disposing);

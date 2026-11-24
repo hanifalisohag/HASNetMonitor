@@ -173,7 +173,12 @@ internal sealed class TaskbarWidget : LayeredWindow
         FrameTrace.StartBlinkWatch(() => SurfaceRect);
     }
 
-    public event Action<Point>? MenuRequested;
+    /// <summary>
+    /// The widget's own window handle, used to own the tray menu. An owned popup is
+    /// composited with its owner and never gets a taskbar button of its own, which is
+    /// what keeps the shell from flashing an app icon while a menu item is dragged.
+    /// </summary>
+    internal IntPtr WindowHandle => HandleForPosting;
 
     /// <summary>
     /// Raised on every sample tick with the one-line caption for the tray tooltip:
@@ -277,7 +282,8 @@ internal sealed class TaskbarWidget : LayeredWindow
 
             case WmContextMenu:
             case WmRButtonUp:
-                MenuRequested?.Invoke(Cursor.Position);
+                // The widget is a glanceable overlay: a right-click on it does nothing.
+                // Settings and the other commands live on the tray icon's menu.
                 return;
 
             case WmSettingChange:
