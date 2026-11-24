@@ -441,3 +441,4 @@ $RECYCLE.BIN/
 # The Inno Setup script is source and is committed; only its build output is not.
 # (A bare "installer" here ignored the whole folder, including HASNetMonitor.iss.)
 installer/Output/
+_gallery
