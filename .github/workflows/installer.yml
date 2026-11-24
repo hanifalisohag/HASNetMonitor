@@ -36,9 +36,14 @@ jobs:
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
 
           # A tag v<version> means this exact version already shipped. gh exits non-zero
-          # when the tag is absent, which is the case that should build.
+          # when the tag is absent, which is the case that should build. The probe's exit
+          # code is consumed here: GitHub's pwsh wrapper ends the step with the last
+          # native command's code, so leaving it set would fail the step on the very
+          # "new version" path this job exists to detect.
           gh release view "v$version" --json tagName *> $null
-          if ($LASTEXITCODE -eq 0) {
+          $released = $LASTEXITCODE -eq 0
+          $global:LASTEXITCODE = 0
+          if ($released) {
             Write-Host "v$version is already released; nothing to build"
             "changed=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
           }

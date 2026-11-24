@@ -163,6 +163,29 @@ public class InstallerAndWorkflowTests
     }
 
     [Fact]
+    public void TheVersionGateDoesNotFailOnANewVersion()
+    {
+        // GitHub's pwsh wrapper ends a step with the last native command's exit code, so
+        // the `gh release view` probe - which exits non-zero exactly when the version is
+        // new, the case that must build - would fail the step on the path it exists to
+        // detect. The probe's code has to be consumed before the step ends.
+        string workflow = Workflow(out _);
+
+        int probeAt = workflow.IndexOf("gh release view \"v$version\"", StringComparison.Ordinal);
+        Assert.True(probeAt >= 0, "the version gate no longer probes the release tag");
+
+        // The probe's exit code is read into a variable and then cleared, so the step
+        // ends with success on both branches.
+        int clearAt = workflow.IndexOf("$global:LASTEXITCODE = 0", probeAt, StringComparison.Ordinal);
+        Assert.True(clearAt > probeAt, "the version gate leaves the probe's non-zero exit code set");
+
+        // The clear must come before the branch that writes the outputs, so both the
+        // released and the new-version path end the step cleanly.
+        int branchAt = workflow.IndexOf("changed=false", probeAt, StringComparison.Ordinal);
+        Assert.True(branchAt > clearAt, "the exit code is cleared after the gate has already branched");
+    }
+
+    [Fact]
     public void TheWorkflowPublishesWhatTheInstallerBundles()
     {
         string workflow = Workflow(out _);
