@@ -358,7 +358,15 @@ internal sealed class WidgetRenderer
                 int secondRowY = Math.Max(layout.DownloadText.Y, layout.UploadText.Y);
                 int blockTop = firstRowY;
                 int blockBottom = Math.Max(layout.DownloadBar.Bottom, layout.UploadBar.Bottom);
-                int chipBlockHeight = (secondRowY - firstRowY) + chipHeight;
+
+                // A bar indicator hangs below each chip, so the block is one bar taller than
+                // the chip rows. Leaving it out centred the block too low and the last row's
+                // bar fell past the widget's bottom edge, where it was clipped to a thinner
+                // line than the first row's. The bar height matches DrawChipBar's.
+                int chipBarHeight = ChipIndicators.Normalize(config.ChipIndicator) == ChipIndicators.Bar
+                    ? Math.Max(1, (int)Math.Round(1.5 * scale))
+                    : 0;
+                int chipBlockHeight = (secondRowY - firstRowY) + chipHeight + chipBarHeight;
                 chipRow0Y = (int)Math.Round(((blockTop + blockBottom) / 2.0) - (chipBlockHeight / 2.0));
                 chipRow1Y = chipRow0Y + (secondRowY - firstRowY);
             }
