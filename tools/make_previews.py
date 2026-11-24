@@ -92,11 +92,10 @@ def fit_text(d, text, fnt, max_width):
 def hero():
     a = art("hero")
     padx, pady, head = 56, 44, 78
-    s = strip("hero", pad=12)
 
-    # The banner is as wide as the widget strip needs, never narrower than the README's
-    # other images, so a wider widget (more chips) grows the banner instead of being cropped.
-    W = max(1200, s.width + padx * 2)
+    # The banner is as wide as the README's other images, never narrower, so the taskbar
+    # strip below has room for the Start button, the widget and the real system tray.
+    W = 1200
     H = a.height + pady * 2 + head
     im = Image.new("RGBA", (W, H), BG)
     d = ImageDraw.Draw(im)
@@ -112,11 +111,82 @@ def hero():
     fit_text(d, tag, reg(16), inner)
     d.text((padx, pady + 44), tag, font=reg(16), fill=MUTED)
 
-    if s.width > inner:
-        raise SystemExit(f"hero art too wide: {s.width} > {inner}")
-    # centre the strip under the heading, matching the banner's padding
-    im.paste(s, ((W - s.width) // 2, pady + head - 6))
+    # The widget sits on a real Windows 11 taskbar: Start on the left, the live figures
+    # where the app puts them, and the system tray - Wi-Fi, volume, battery, clock - on
+    # the right, so the preview shows the widget in the place it actually lives.
+    bar = taskbar(a, W - padx * 2)
+    im.paste(bar, (padx, pady + head - 6), bar)
     save(im, "hero.png")
+
+
+# Windows 11 taskbar colours, dark theme.
+BAR_BG    = (32, 32, 32)
+BAR_TOP   = (44, 44, 44)
+BAR_ICON  = (243, 243, 243)
+BAR_MUTED = (200, 200, 200)
+
+# Segoe MDL2 Assets glyphs, the ones the real tray draws.
+G_START   = "\uE700"   # Windows logo
+G_SEARCH  = "\uE721"
+G_TASKVIEW = "\uE7C4"
+G_CHEVRON = "\uE70D"   # the tray's "show hidden icons" arrow
+G_WIFI    = "\uE701"
+G_VOLUME  = "\uE767"
+G_BATTERY = "\uE83F"
+
+
+def _mdl2(sz):
+    return _font("segmdl2.ttf", sz)
+
+
+def taskbar(widget, width, height=96):
+    """A Windows 11 taskbar strip: Start and friends left, the widget, the tray right."""
+    bar = Image.new("RGBA", (width, height), BAR_BG)
+    d = ImageDraw.Draw(bar)
+
+    # A hairline highlight along the top edge, as the real taskbar has.
+    d.line([(0, 0), (width, 0)], fill=BAR_TOP)
+
+    icon = _mdl2(30)
+    cy = height // 2
+
+    def glyph(ch, x, fnt=None, fill=BAR_ICON):
+        f = fnt or icon
+        w = d.textlength(ch, font=f)
+        d.text((x, cy), ch, font=f, fill=fill, anchor="lm")
+        return w
+
+    # Left cluster: Start, search, task view - the Windows 11 arrangement.
+    x = 22
+    x += glyph(G_START, x) + 26
+    x += glyph(G_SEARCH, x) + 26
+    x += glyph(G_TASKVIEW, x) + 26
+    x = round(x)
+
+    # The widget, scaled to sit inside the taskbar with a little breathing room.
+    art_h = height - 26
+    scale = art_h / widget.height
+    w = widget.resize((max(1, round(widget.width * scale)), art_h), Image.Resampling.LANCZOS)
+    bar.alpha_composite(w, (x, (height - art_h) // 2))
+
+    # Right cluster: the tray. The clock is two stacked lines, so it is drawn by hand.
+    clock = reg(15)
+    date = reg(13)
+    time_s, date_s = "9:41 PM", "6/14/2025"
+    tw = max(d.textlength(time_s, font=clock), d.textlength(date_s, font=date))
+    tray_w = 30 + 30 + 30 + 22 + tw + 22
+    tx = round(width - tray_w)
+
+    tx += glyph(G_CHEVRON, tx, _mdl2(20), BAR_MUTED) + 22
+    tx += glyph(G_WIFI, tx) + 22
+    tx += glyph(G_VOLUME, tx) + 22
+    tx += glyph(G_BATTERY, tx) + 22
+
+    d.text((tx, cy - 9), time_s, font=clock, fill=BAR_ICON, anchor="lm")
+    d.text((tx, cy + 9), date_s, font=date, fill=BAR_MUTED, anchor="lm")
+
+    return bar
+
 
 
 DESIGNS = [
