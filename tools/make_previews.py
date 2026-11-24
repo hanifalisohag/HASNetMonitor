@@ -91,12 +91,16 @@ def fit_text(d, text, fnt, max_width):
 
 def hero():
     a = art("hero")
-    padx, pady, head = 56, 44, 78
+    padx, pady, head = 56, 44, 132
 
     # The banner is as wide as the README's other images, never narrower, so the taskbar
-    # strip below has room for the Start button, the widget and the real system tray.
+    # strip below has room for the widget and the real system tray.
     W = 1200
-    H = a.height + pady * 2 + head
+    bar = taskbar(a, W - padx * 2)
+    # The banner is sized from what it actually draws - the heading block and the taskbar
+    # strip - not from the raw art height, which is never pasted here. Sizing from the art
+    # left a tall empty band under the strip.
+    H = pady + head + bar.height + pady
     im = Image.new("RGBA", (W, H), BG)
     d = ImageDraw.Draw(im)
     for y in range(H):
@@ -111,10 +115,26 @@ def hero():
     fit_text(d, tag, reg(16), inner)
     d.text((padx, pady + 44), tag, font=reg(16), fill=MUTED)
 
-    # The widget sits on a real Windows 11 taskbar: Start on the left, the live figures
-    # where the app puts them, and the system tray - Wi-Fi, volume, battery, clock - on
-    # the right, so the preview shows the widget in the place it actually lives.
-    bar = taskbar(a, W - padx * 2)
+    # The heading block is short, so the right of the banner would sit empty. A short
+    # feature list fills it and says what the widget does, in the space the eye already
+    # travels across on the way to the taskbar strip below.
+    feats = [
+        ("Ten widget styles", "bars, rings, neon and more"),
+        ("Live figures", "upload and download, every second"),
+        ("Tray-native", "sits beside the clock, out of the way"),
+    ]
+    fx = W - padx
+    fy = pady + 2
+    for title, sub in feats:
+        tw = d.textlength(title, font=bold(15))
+        sw = d.textlength(sub, font=reg(12))
+        d.text((fx - tw, fy), title, font=bold(15), fill=TEXT)
+        d.text((fx - sw, fy + 19), sub, font=reg(12), fill=MUTED)
+        fy += 38
+
+    # The widget sits on a real Windows 11 taskbar: the live figures where the app puts
+    # them and the system tray - Wi-Fi, volume, battery, clock - on the right, so the
+    # preview shows the widget in the place it actually lives.
     im.paste(bar, (padx, pady + head - 6), bar)
     save(im, "hero.png")
 
@@ -129,6 +149,9 @@ BAR_MUTED = (200, 200, 200)
 G_START   = "\uE700"   # Windows logo
 G_SEARCH  = "\uE721"
 G_TASKVIEW = "\uE7C4"
+G_FOLDER  = "\uE8B7"   # File Explorer
+G_GLOBE   = "\uE774"   # browser
+G_TERMINAL = "\uE756"  # command prompt
 G_CHEVRON = "\uE70D"   # the tray's "show hidden icons" arrow
 G_WIFI    = "\uE701"
 G_VOLUME  = "\uE767"
@@ -140,7 +163,7 @@ def _mdl2(sz):
 
 
 def taskbar(widget, width, height=96):
-    """A Windows 11 taskbar strip: Start and friends left, the widget, the tray right."""
+    """A Windows 11 taskbar strip: Start and friends left, the widget by the tray, tray right."""
     bar = Image.new("RGBA", (width, height), BAR_BG)
     d = ImageDraw.Draw(bar)
 
@@ -156,36 +179,53 @@ def taskbar(widget, width, height=96):
         d.text((x, cy), ch, font=f, fill=fill, anchor="lm")
         return w
 
-    # Left cluster: Start, search, task view - the Windows 11 arrangement.
+    # No left cluster: the preview shows the widget and the tray, not the Start button.
+    # The widget is placed from the left edge of the bar.
     x = 22
-    x += glyph(G_START, x) + 26
-    x += glyph(G_SEARCH, x) + 26
-    x += glyph(G_TASKVIEW, x) + 26
-    x = round(x)
-
-    # The widget, scaled to sit inside the taskbar with a little breathing room.
-    art_h = height - 26
-    scale = art_h / widget.height
-    w = widget.resize((max(1, round(widget.width * scale)), art_h), Image.Resampling.LANCZOS)
-    bar.alpha_composite(w, (x, (height - art_h) // 2))
 
     # Right cluster: the tray. The clock is two stacked lines, so it is drawn by hand.
+    # Its width is measured from the glyphs actually drawn, not guessed, so the clock
+    # lands inside the bar instead of running off the edge.
     clock = reg(15)
     date = reg(13)
     time_s, date_s = "9:41 PM", "6/14/2025"
-    tw = max(d.textlength(time_s, font=clock), d.textlength(date_s, font=date))
-    tray_w = 30 + 30 + 30 + 22 + tw + 22
-    tx = round(width - tray_w)
+    clock_w = max(d.textlength(time_s, font=clock), d.textlength(date_s, font=date))
 
-    tx += glyph(G_CHEVRON, tx, _mdl2(20), BAR_MUTED) + 22
-    tx += glyph(G_WIFI, tx) + 22
-    tx += glyph(G_VOLUME, tx) + 22
-    tx += glyph(G_BATTERY, tx) + 22
+    gap = 22
+    tray = [
+        (G_CHEVRON, _mdl2(20), BAR_MUTED),
+        (G_WIFI, icon, BAR_ICON),
+        (G_VOLUME, icon, BAR_ICON),
+        (G_BATTERY, icon, BAR_ICON),
+    ]
+    tray_w = sum(d.textlength(ch, font=f) + gap for ch, f, _ in tray) + clock_w + gap
+    tray_x = round(width - tray_w)
 
+    tx = tray_x
+    for ch, f, fill in tray:
+        tx += glyph(ch, tx, f, fill) + gap
     d.text((tx, cy - 9), time_s, font=clock, fill=BAR_ICON, anchor="lm")
     d.text((tx, cy + 9), date_s, font=date, fill=BAR_MUTED, anchor="lm")
 
+    # The widget sits next to the tray, where the app actually lives, not floating at the
+    # far left. It is scaled to the taskbar height and placed by its visible right edge, so
+    # the gap to the tray is the gap that shows: the art carries transparent padding, and
+    # placing by the full width would let the drawn pixels touch the icons.
+    art_h = height - 26
+    scale = art_h / widget.height
+    w = widget.resize((max(1, round(widget.width * scale)), art_h), Image.Resampling.LANCZOS)
+
+    # The widget-to-tray gap is wider than the tray's own icon spacing: the widget is a
+    # separate thing on the bar, not another tray icon, and the two must not read as one.
+    widget_gap = 40
+    visible = w.getbbox() or (0, 0, w.width, w.height)
+    wx = round(tray_x - widget_gap - visible[2])
+    if wx < x:
+        raise SystemExit(f"taskbar too narrow for the widget: needs {x + w.width + widget_gap + tray_w}px, has {width}")
+    bar.alpha_composite(w, (wx, (height - art_h) // 2))
+
     return bar
+
 
 
 
