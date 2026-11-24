@@ -16,7 +16,7 @@ battery - each in its own colour.
 ![HASNetMonitor on the taskbar](imgs/hero.png)
 
 <p align="center">
-  <a href="https://github.com/hanifalisohag/HASNetMonitor/releases/latest">
+  <a href="https://github.com/hanifalisohag/HASNetMonitor/releases/latest/download/HASNetMonitor-Setup.exe">
     <img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F_Download_for_Windows-HASNetMonitor-22c55e?style=flat-square&logo=windows&logoColor=white" alt="Download HASNetMonitor for Windows" width="380">
   </a>
 </p>
@@ -106,30 +106,6 @@ The marker itself is chosen with **Settings → Colours and behaviour → Chip m
 cylinder and a battery). **Chip shape** adds a translucent glass pill behind each chip, and
 **Glass tracks** draws the bar tracks and fills with the same frosted look. Both work with any
 style, so the glassy look is a toggle rather than a style of its own.
-
----
-
-## Download
-
-<p align="center">
-  <a href="https://github.com/hanifalisohag/HASNetMonitor/releases/latest">
-    <img src="https://img.shields.io/badge/%E2%AC%87%EF%B8%8F_Download_for_Windows-HASNetMonitor-22c55e?style=flat-square&logo=windows&logoColor=white" alt="Download HASNetMonitor for Windows" width="380">
-  </a>
-</p>
-
-[![Download HASNetMonitor](https://img.shields.io/badge/Download-HASNetMonitor-22c55e?style=for-the-badge&logo=windows&logoColor=white)](https://github.com/hanifalisohag/HASNetMonitor/releases/latest)
-
-The button opens the [latest release](https://github.com/hanifalisohag/HASNetMonitor/releases/latest),
-where the Setup exe is the first asset. The direct download link is:
-
-```
-https://github.com/hanifalisohag/HASNetMonitor/releases/latest/download/HASNetMonitor-Setup.exe
-```
-
-The asset is named `HASNetMonitor-Setup.exe` — one file, per-user, no admin rights, no runtime
-to download. A push to `main` that bumps `<Version>` builds it and publishes it, so the newest
-release is always the current code. All releases are listed on the
-[releases page](https://github.com/hanifalisohag/HASNetMonitor/releases).
 
 ## Requirements
 
