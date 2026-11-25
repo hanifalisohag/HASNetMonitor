@@ -232,10 +232,19 @@ internal sealed class WidgetRenderer
         int chipColumnGap = Math.Max(2, (int)Math.Round(2.5f * scale));
         int chipTextGap = Math.Max(2, (int)Math.Round(3 * scale));
         int chipGapAfterDot = Math.Max(1, (int)Math.Round(2 * scale));
+        // An icon is wider than the letter dot and its ink reaches the box edge, so it needs
+        // more air before the figure than the dot does, or the two read as one blob.
+        int chipGapAfterIcon = Math.Max(3, (int)Math.Round(4 * scale));
         // An odd side keeps the marker centred on a whole pixel: an even side at a
         // half-pixel offset anti-aliases a filled dot into a hollow ring, which reads as a
         // distorted, non-square blob at some font sizes.
-        int chipDotPx = Math.Max(3, (int)Math.Round(4 * scale) | 1);
+        // An icon is drawn larger than the dot it replaces, so its strokes stay legible at
+        // taskbar sizes; the layout reserves the wider box, so the chip text never overlaps.
+        // The user's ChipIconSizePercent scales it against the dot (150 = one and a half times).
+        bool iconMarkers = ChipIcons.IsIcon(config.ChipIcon);
+        int dotPx = Math.Max(3, (int)Math.Round(4 * scale) | 1);
+        int iconPx = Math.Max(5, (int)Math.Round(dotPx * (config.ChipIconSizePercent / 100.0)) | 1);
+        int chipDotPx = iconMarkers ? iconPx : dotPx;
 
         for (int attempt = 0; ; attempt++)
         {
@@ -258,11 +267,17 @@ internal sealed class WidgetRenderer
                 chipHeight = Math.Max(1, (int)Math.Ceiling(statsFont.GetHeight(measureGraphics)));
 
                 using var chipFormat = CreateTightFormat();
+                bool iconChips = ChipIcons.IsIcon(config.ChipIcon);
                 float[] chipWidths = new float[statsItems.Length];
                 for (int i = 0; i < statsItems.Length; i++)
                 {
-                    chipWidths[i] = chipDotPx + chipGapAfterDot + measureGraphics.MeasureString(
-                        statsItems[i].MeasureText, statsFont, PointF.Empty, chipFormat).Width;
+                    // An icon replaces the "C:" prefix, so the chip is measured against the
+                    // value alone - otherwise the reserved width would leave a gap where the
+                    // letter used to be.
+                    string measured = iconChips ? ChipValueText(statsItems[i].MeasureText) : statsItems[i].MeasureText;
+                    int gapAfterMarker = iconChips ? chipGapAfterIcon : chipGapAfterDot;
+                    chipWidths[i] = chipDotPx + gapAfterMarker + measureGraphics.MeasureString(
+                        measured, statsFont, PointF.Empty, chipFormat).Width;
                 }
 
                 // Columns are filled top-down, two chips per column at most.
@@ -379,7 +394,7 @@ internal sealed class WidgetRenderer
                 ArrowStyle = ArrowStyles.Normalize(config.ArrowStyle),
                 StatsColumns = showChips ? columnX.Length : 0,
                 StatsChipHeight = chipHeight,
-                StatsDotSize = Math.Max(3, (int)Math.Round(4 * scale) | 1),
+                StatsDotSize = chipDotPx,
                 StatsRowTop = chipRow0Y,
                 StatsRowBottom = chipRow1Y,
                 StatsColumnX = columnX,
@@ -830,10 +845,14 @@ internal sealed class WidgetRenderer
         float scale = layout.Scale;
         float dot = Math.Max(3f, layout.StatsDotSize);
         float gapAfterDot = Math.Max(1f, (float)Math.Round(2 * scale));
+        // The icon's ink reaches its box edge, so it needs more air before the figure than
+        // the dot does; the layout reserved the same wider gap.
+        float gapAfterIcon = Math.Max(3f, (float)Math.Round(4 * scale));
 
         float chipHeight = Math.Max(1f, (float)layout.StatsChipHeight);
         string indicator = ChipIndicators.Normalize(config.ChipIndicator);
         string icon = ChipIcons.Normalize(config.ChipIcon);
+        bool iconChips = ChipIcons.IsIcon(icon);
         bool glassChips = config.EffectiveGlassChips;
 
         for (int i = 0; i < items.Length; i++)
@@ -845,8 +864,10 @@ internal sealed class WidgetRenderer
                 break; // defensive: the layout was computed from the same items
             }
 
+            string chipText = iconChips ? ChipValueText(items[i].Text) : items[i].Text;
             float chipX = layout.StatsColumnX[column];
-            float chipWidth = dot + gapAfterDot + graphics.MeasureString(items[i].Text, statsFont, PointF.Empty, format).Width;
+            float markerGap = iconChips ? gapAfterIcon : gapAfterDot;
+            float chipWidth = dot + markerGap + graphics.MeasureString(chipText, statsFont, PointF.Empty, format).Width;
 
             // A chip that does not fit is dropped, not clipped: the figure is never
             // short-changed to make a stat legible.
@@ -857,8 +878,10 @@ internal sealed class WidgetRenderer
 
             float chipY = row == 0 ? layout.StatsRowTop : layout.StatsRowBottom;
             // Snap the marker to a whole pixel: a half-pixel offset anti-aliases the dot
-            // into a hollow ring, which is the distortion seen at some font sizes.
-            float dotY = chipY + (float)Math.Round((chipHeight - dot) / 2f);
+            // into a hollow ring, which is the distortion seen at some font sizes. Integer
+            // division on the whole-pixel gap, so the marker sits exactly where the layout
+            // and the tests place it.
+            float dotY = chipY + (int)((chipHeight - dot) / 2);
 
             if (glassChips)
             {
@@ -871,12 +894,12 @@ internal sealed class WidgetRenderer
             // figure colour, so the default look is unchanged. The text is centred on its
             // own ink box, the way the arrow is: the em box is taller than the glyphs, so
             // em-centring leaves the chip sitting a pixel below the figure's line.
-            Color chipText = config.ChipTextColor(items[i].Metric, textColor);
-            using (var textBrush = new SolidBrush(chipText))
+            Color chipTextColor = config.ChipTextColor(items[i].Metric, textColor);
+            using (var textBrush = new SolidBrush(chipTextColor))
             {
                 var chipRow = new Rectangle((int)Math.Floor(chipX), (int)Math.Floor(chipY), (int)Math.Ceiling(chipWidth), (int)Math.Ceiling(chipHeight));
-                float chipTextTop = InkCentredTop(graphics, statsFont, format, items[i].Text, chipRow);
-                graphics.DrawString(items[i].Text, statsFont, textBrush, chipX + dot + gapAfterDot, chipTextTop, format);
+                float chipTextTop = InkCentredTop(graphics, statsFont, format, chipText, chipRow);
+                graphics.DrawString(chipText, statsFont, textBrush, chipX + dot + markerGap, chipTextTop, format);
             }
 
             if (indicator == ChipIndicators.Bar)
@@ -918,8 +941,23 @@ internal sealed class WidgetRenderer
     }
 
     /// <summary>
+    /// The value part of a chip's text, with the metric's "C:" prefix removed. Used when an
+    /// icon stands in for the letter, so the chip shows the icon and the value, not both.
+    /// </summary>
+    private static string ChipValueText(string text)
+    {
+        int colon = text.IndexOf(':');
+        if (colon < 0)
+        {
+            return text;
+        }
+
+        return text.Substring(colon + 1).TrimStart();
+    }
+
+    /// <summary>
     /// The marker at the left of a chip: a plain dot, a ring filled to the metric's
-    /// level, or a glyph icon. The ring keeps the dot's footprint, so switching the
+    /// level, or an icon. The ring keeps the dot's footprint, so switching the
     /// indicator never changes the widget's width.
     /// </summary>
     private static void DrawChipMarker(
@@ -932,9 +970,18 @@ internal sealed class WidgetRenderer
         string icon,
         float scale)
     {
-        if (icon == ChipIcons.Glyph)
+        if (ChipIcons.IsIcon(icon))
         {
-            DrawChipGlyph(graphics, item.Metric, item.Dot, x, y, size, scale);
+            DrawChipGlyph(
+                graphics,
+                item.Metric,
+                item.Dot,
+                x,
+                y,
+                size,
+                scale,
+                solid: ChipIcons.IsSolid(icon),
+                detailed: ChipIcons.IsDetailed(icon));
             return;
         }
 
@@ -984,65 +1031,304 @@ internal sealed class WidgetRenderer
     }
 
     /// <summary>
-    /// A hand-drawn vector glyph for the metric. At chip size a font glyph turns to
-    /// mush, so each icon is a few strokes that stay legible at four or five pixels.
+    /// A hand-drawn icon for the metric. At chip size a font glyph turns to mush, so each
+    /// icon is a few strokes that stay legible at four or five pixels. <paramref name="solid"/>
+    /// fills the shapes instead of outlining them; <paramref name="detailed"/> draws the
+    /// busier set whose extra strokes tell the parts apart at a glance.
     /// </summary>
-    private static void DrawChipGlyph(Graphics graphics, string metric, Color color, float x, float y, float size, float scale)
+    private static void DrawChipGlyph(Graphics graphics, string metric, Color color, float x, float y, float size, float scale, bool solid, bool detailed)
     {
         SmoothingMode previous = graphics.SmoothingMode;
-        graphics.SmoothingMode = SmoothingMode.AntiAlias;
+        // Aliased, not anti-aliased: at chip size a 1px stroke centred on a whole pixel
+        // straddles the boundary and anti-aliases into a two-pixel grey smear, so the icon
+        // reads as mush and its blur shifts with every size. Drawing without smoothing, on
+        // whole-pixel coordinates, keeps every stroke a crisp single pixel.
+        graphics.SmoothingMode = SmoothingMode.None;
         try
         {
             float stroke = Math.Max(1f, (float)Math.Round(scale));
-            using var pen = new Pen(color, stroke) { StartCap = LineCap.Round, EndCap = LineCap.Round };
+            using var pen = new Pen(color, stroke) { StartCap = LineCap.Flat, EndCap = LineCap.Flat };
+            using var brush = new SolidBrush(color);
+            // Snap the icon's geometry to whole pixels: with smoothing off, a 1px stroke on a
+            // whole coordinate covers exactly one row or column. The span stops one pixel
+            // short of the box edge so the right and bottom strokes land inside the box too.
+            x = (float)Math.Round(x);
+            y = (float)Math.Round(y);
+            size = (float)Math.Round(size) - 1f;
             float right = x + size;
             float bottom = y + size;
-            float midX = x + (size / 2f);
-            float midY = y + (size / 2f);
+            float midX = x + (float)Math.Floor(size / 2f);
+            float midY = y + (float)Math.Floor(size / 2f);
+            float inset = (float)Math.Round(size * 0.2f);
+            float span = size - (2 * inset);
 
             switch (ChipMetrics.Normalize(metric))
             {
                 case ChipMetrics.Cpu:
-                    // A square die with a pin on each side.
-                    graphics.DrawRectangle(pen, x + (size * 0.2f), y + (size * 0.2f), size * 0.6f, size * 0.6f);
-                    graphics.DrawLine(pen, midX, y, midX, y + (size * 0.2f));
-                    graphics.DrawLine(pen, midX, bottom - (size * 0.2f), midX, bottom);
-                    graphics.DrawLine(pen, x, midY, x + (size * 0.2f), midY);
-                    graphics.DrawLine(pen, right - (size * 0.2f), midY, right, midY);
+                    DrawCpuGlyph(graphics, pen, brush, x, y, size, right, bottom, midX, midY, inset, span, solid, detailed);
                     break;
 
                 case ChipMetrics.Ram:
-                    // A stick with two contact notches.
-                    graphics.DrawRectangle(pen, x, y + (size * 0.25f), size, size * 0.5f);
-                    graphics.DrawLine(pen, x + (size * 0.3f), bottom - (size * 0.25f), x + (size * 0.3f), bottom);
-                    graphics.DrawLine(pen, x + (size * 0.7f), bottom - (size * 0.25f), x + (size * 0.7f), bottom);
+                    DrawRamGlyph(graphics, pen, brush, x, y, size, bottom, solid, detailed);
                     break;
 
                 case ChipMetrics.Gpu:
-                    // A card with a fan circle.
-                    graphics.DrawRectangle(pen, x, y + (size * 0.2f), size, size * 0.6f);
-                    graphics.DrawEllipse(pen, midX - (size * 0.18f), midY - (size * 0.18f), size * 0.36f, size * 0.36f);
+                    DrawGpuGlyph(graphics, pen, brush, x, y, size, midX, midY, solid, detailed);
                     break;
 
                 case ChipMetrics.Disk:
-                    // A stacked-platter cylinder.
-                    graphics.DrawEllipse(pen, x, y + (size * 0.1f), size, size * 0.3f);
-                    graphics.DrawLine(pen, x, y + (size * 0.25f), x, bottom - (size * 0.15f));
-                    graphics.DrawLine(pen, right, y + (size * 0.25f), right, bottom - (size * 0.15f));
-                    graphics.DrawArc(pen, x, bottom - (size * 0.3f), size, size * 0.3f, 0f, 180f);
+                    DrawDiskGlyph(graphics, pen, brush, x, y, size, right, bottom, solid, detailed);
                     break;
 
                 default:
-                    // Battery: a body with a terminal nub.
-                    graphics.DrawRectangle(pen, x, y + (size * 0.2f), size * 0.8f, size * 0.6f);
-                    graphics.DrawLine(pen, right - (size * 0.2f), midY - (size * 0.12f), right, midY - (size * 0.12f));
-                    graphics.DrawLine(pen, right - (size * 0.2f), midY + (size * 0.12f), right, midY + (size * 0.12f));
+                    DrawBatteryGlyph(graphics, pen, brush, x, y, size, right, midY, solid, detailed);
                     break;
             }
         }
         finally
         {
             graphics.SmoothingMode = previous;
+        }
+    }
+
+    /// <summary>CPU: a square die. The detailed set adds a pin on every side.</summary>
+    private static void DrawCpuGlyph(Graphics graphics, Pen pen, Brush brush, float x, float y, float size, float right, float bottom, float midX, float midY, float inset, float span, bool solid, bool detailed)
+    {
+        // Work in whole pixels: the box is (size + 1) pixels wide, so the die is an odd or even
+        // span that leaves the same margin on both sides and sits dead centre. The pins are the
+        // same length on every side, so the icon stays symmetric at any size.
+        int box = (int)Math.Round(size) + 1;
+        int dieSpan = Math.Max(1, box - (2 * Math.Max(1, (int)Math.Round(box * 0.2))));
+        if ((dieSpan % 2) != (box % 2))
+        {
+            dieSpan = Math.Max(1, dieSpan - 1);
+        }
+
+        int dieStart = (box - dieSpan) / 2;
+        float dieX = x + dieStart;
+        float dieY = y + dieStart;
+        float dieRight = dieX + dieSpan - 1;
+        float dieBottom = dieY + dieSpan - 1;
+        float dieMidX = dieX + (dieSpan / 2);
+        float dieMidY = dieY + (dieSpan / 2);
+
+        if (solid)
+        {
+            graphics.FillRectangle(brush, dieX, dieY, dieSpan, dieSpan);
+        }
+        else
+        {
+            graphics.DrawRectangle(pen, dieX, dieY, dieSpan - 1, dieSpan - 1);
+        }
+
+        // A pin on each side, drawn only when the die leaves room for one. Filled rectangles,
+        // not lines: a one-pixel line from y to y+1 rasterises to nothing at some offsets,
+        // which dropped the top pin and broke the icon's symmetry.
+        if (dieStart >= 1)
+        {
+            graphics.FillRectangle(brush, dieMidX, y, 1, dieY - y);
+            graphics.FillRectangle(brush, dieMidX, dieBottom + 1, 1, bottom - dieBottom);
+            graphics.FillRectangle(brush, x, dieMidY, dieX - x, 1);
+            graphics.FillRectangle(brush, dieRight + 1, dieMidY, right - dieRight, 1);
+        }
+
+        if (detailed)
+        {
+            // A second pin on each side, so the die reads as a chip and not a plain square.
+            float quarter = (float)Math.Round(size * 0.3f);
+            float threeQuarter = (float)Math.Round(size * 0.7f);
+            graphics.FillRectangle(brush, x + quarter, y, 1, dieY - y);
+            graphics.FillRectangle(brush, x + threeQuarter, y, 1, dieY - y);
+            graphics.FillRectangle(brush, x + quarter, dieBottom + 1, 1, bottom - dieBottom);
+            graphics.FillRectangle(brush, x + threeQuarter, dieBottom + 1, 1, bottom - dieBottom);
+            graphics.FillRectangle(brush, x, y + quarter, dieX - x, 1);
+            graphics.FillRectangle(brush, x, y + threeQuarter, dieX - x, 1);
+            graphics.FillRectangle(brush, dieRight + 1, y + quarter, right - dieRight, 1);
+            graphics.FillRectangle(brush, dieRight + 1, y + threeQuarter, right - dieRight, 1);
+        }
+    }
+
+    /// <summary>RAM: a stick with contact notches. The detailed set adds the memory chips.</summary>
+    private static void DrawRamGlyph(Graphics graphics, Pen pen, Brush brush, float x, float y, float size, float bottom, bool solid, bool detailed)
+    {
+        // The stick is a bar across the middle, at least two pixels tall so it never
+        // collapses, with the notches below it the same width apart on every size.
+        float ramTop = y + Math.Max(1f, (float)Math.Round(size * 0.25f));
+        float ramHeight = Math.Max(2f, size - (2 * Math.Max(1f, (float)Math.Round(size * 0.25f))));
+        if (solid)
+        {
+            graphics.FillRectangle(brush, x, ramTop, size, ramHeight);
+        }
+        else
+        {
+            graphics.DrawRectangle(pen, x, ramTop, size, ramHeight);
+        }
+
+        float notchTop = ramTop + ramHeight;
+        float notchLeft = x + (float)Math.Round(size * 0.3f);
+        float notchRight = x + (float)Math.Round(size * 0.7f);
+        graphics.DrawLine(pen, notchLeft, notchTop, notchLeft, bottom);
+        graphics.DrawLine(pen, notchRight, notchTop, notchRight, bottom);
+
+        if (detailed)
+        {
+            // Three chips along the stick, so it reads as memory and not a plain bar.
+            float chipTop = ramTop + Math.Max(1f, (float)Math.Round(size * 0.12f));
+            float chipSide = Math.Max(1f, (float)Math.Round(size * 0.16f));
+            float gap = Math.Max(1f, (float)Math.Round(size * 0.08f));
+            float startX = x + (float)Math.Round(size * 0.12f);
+            for (int i = 0; i < 3; i++)
+            {
+                float cx = startX + (i * (chipSide + gap));
+                if (cx + chipSide > x + size - (float)Math.Round(size * 0.12f))
+                {
+                    break;
+                }
+
+                if (solid)
+                {
+                    graphics.FillRectangle(brush, cx, chipTop, chipSide, chipSide);
+                }
+                else
+                {
+                    graphics.DrawRectangle(pen, cx, chipTop, chipSide, chipSide);
+                }
+            }
+        }
+    }
+
+    /// <summary>GPU: a card with a fan. The detailed set adds the bracket and the fan blades.</summary>
+    private static void DrawGpuGlyph(Graphics graphics, Pen pen, Brush brush, float x, float y, float size, float midX, float midY, bool solid, bool detailed)
+    {
+        // The card is a bar across the middle, at least two pixels tall, with the fan centred
+        // inside it and never larger than the card, so the shape holds at every size.
+        float gpuTop = y + Math.Max(1f, (float)Math.Round(size * 0.2f));
+        float gpuHeight = Math.Max(2f, size - (2 * Math.Max(1f, (float)Math.Round(size * 0.2f))));
+        float cardMidY = gpuTop + (float)Math.Floor(gpuHeight / 2f);
+        float fan = Math.Max(2f, Math.Min((float)Math.Round(size * 0.36f), gpuHeight));
+        float fanX = x + (float)Math.Floor((size - fan) / 2f);
+        float fanY = cardMidY - (float)Math.Floor(fan / 2f);
+        if (solid)
+        {
+            graphics.FillRectangle(brush, x, gpuTop, size, gpuHeight);
+            // SourceCopy clears the pixels outright; a transparent brush would blend and
+            // leave a grey ring where the fan meets the card.
+            CompositingMode previousMode = graphics.CompositingMode;
+            graphics.CompositingMode = CompositingMode.SourceCopy;
+            using var hole = new SolidBrush(Color.Transparent);
+            graphics.FillEllipse(hole, fanX, fanY, fan, fan);
+            graphics.CompositingMode = previousMode;
+        }
+        else
+        {
+            graphics.DrawRectangle(pen, x, gpuTop, size, gpuHeight);
+            graphics.DrawEllipse(pen, fanX, fanY, fan, fan);
+        }
+
+        if (detailed)
+        {
+            // A bracket down the left edge and two fan blades, so it reads as a card.
+            float bracket = (float)Math.Round(size * 0.12f);
+            graphics.DrawLine(pen, x + bracket, y, x + bracket, y + size);
+            float blade = (float)Math.Round(fan * 0.5f);
+            graphics.DrawLine(pen, midX - blade, cardMidY, midX + blade, cardMidY);
+            graphics.DrawLine(pen, midX, cardMidY - blade, midX, cardMidY + blade);
+        }
+    }
+
+    /// <summary>Disk: a stacked-platter cylinder. The detailed set adds the spindle and a platter line.</summary>
+    private static void DrawDiskGlyph(Graphics graphics, Pen pen, Brush brush, float x, float y, float size, float right, float bottom, bool solid, bool detailed)
+    {
+        // The cylinder is a top cap, a body and a bottom cap, each at least two pixels so the
+        // shape never collapses, and the body spans the two cap centres so the edges line up.
+        float diskCap = Math.Max(2f, (float)Math.Round(size * 0.3f));
+        float diskTop = y + Math.Max(1f, (float)Math.Round(size * 0.1f));
+        float capMid = diskCap / 2f;
+        float bodyTop = diskTop + capMid;
+        float bodyBottom = bottom - capMid;
+        if (solid)
+        {
+            graphics.FillEllipse(brush, x, diskTop, size, diskCap);
+            graphics.FillRectangle(brush, x, bodyTop, size, Math.Max(1f, bodyBottom - bodyTop));
+            graphics.FillEllipse(brush, x, bottom - diskCap, size, diskCap);
+        }
+        else
+        {
+            graphics.DrawEllipse(pen, x, diskTop, size, diskCap);
+            graphics.DrawLine(pen, x, bodyTop, x, bodyBottom);
+            graphics.DrawLine(pen, right, bodyTop, right, bodyBottom);
+            graphics.DrawArc(pen, x, bottom - diskCap, size, diskCap, 0f, 180f);
+        }
+
+        if (detailed)
+        {
+            // A spindle dot and a platter line across the middle, so it reads as a disk.
+            float midX = x + (float)Math.Round(size / 2f);
+            float midY = y + (float)Math.Round(size * 0.55f);
+            float spindle = Math.Max(1f, (float)Math.Round(size * 0.12f));
+            if (solid)
+            {
+                using var hole = new SolidBrush(Color.Transparent);
+                graphics.FillEllipse(hole, midX - (spindle / 2f), midY - (spindle / 2f), spindle, spindle);
+            }
+            else
+            {
+                graphics.DrawEllipse(pen, midX - (spindle / 2f), midY - (spindle / 2f), spindle, spindle);
+            }
+
+            graphics.DrawLine(pen, x + (float)Math.Round(size * 0.2f), midY, x + (float)Math.Round(size * 0.35f), midY);
+            graphics.DrawLine(pen, x + (float)Math.Round(size * 0.65f), midY, x + (float)Math.Round(size * 0.8f), midY);
+        }
+    }
+
+    /// <summary>Battery: a body with a terminal nub. The detailed set adds the charge bars.</summary>
+    private static void DrawBatteryGlyph(Graphics graphics, Pen pen, Brush brush, float x, float y, float size, float right, float midY, bool solid, bool detailed)
+    {
+        // The body is at least two pixels tall and the nub sits on the body's own centre, so
+        // the shape holds together at every size.
+        float batTop = y + Math.Max(1f, (float)Math.Round(size * 0.2f));
+        float batHeight = Math.Max(2f, size - (2 * Math.Max(1f, (float)Math.Round(size * 0.2f))));
+        float batWidth = Math.Max(2f, (float)Math.Round(size * 0.8f));
+        float batMidY = batTop + (float)Math.Floor(batHeight / 2f);
+        if (solid)
+        {
+            graphics.FillRectangle(brush, x, batTop, batWidth, batHeight);
+        }
+        else
+        {
+            graphics.DrawRectangle(pen, x, batTop, batWidth, batHeight);
+        }
+
+        float nubHalf = Math.Max(1f, (float)Math.Round(size * 0.12f));
+        graphics.DrawLine(pen, x + batWidth, batMidY - nubHalf, right, batMidY - nubHalf);
+        graphics.DrawLine(pen, x + batWidth, batMidY + nubHalf, right, batMidY + nubHalf);
+
+        if (detailed)
+        {
+            // Two charge bars inside the body, so it reads as a battery and not a box.
+            float barTop = batTop + Math.Max(1f, (float)Math.Round(size * 0.15f));
+            float barHeight = Math.Max(1f, batHeight - (2 * Math.Max(1f, (float)Math.Round(size * 0.15f))));
+            float barWidth = Math.Max(1f, (float)Math.Round(size * 0.12f));
+            float gap = Math.Max(1f, (float)Math.Round(size * 0.08f));
+            float startX = x + (float)Math.Round(size * 0.12f);
+            for (int i = 0; i < 2; i++)
+            {
+                float bx = startX + (i * (barWidth + gap));
+                if (bx + barWidth > x + batWidth - (float)Math.Round(size * 0.12f))
+                {
+                    break;
+                }
+
+                if (solid)
+                {
+                    using var hole = new SolidBrush(Color.Transparent);
+                    graphics.FillRectangle(hole, bx, barTop, barWidth, barHeight);
+                }
+                else
+                {
+                    graphics.FillRectangle(brush, bx, barTop, barWidth, barHeight);
+                }
+            }
         }
     }
 

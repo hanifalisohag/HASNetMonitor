@@ -129,13 +129,16 @@ public class PreviewFrames
 
         // The hero shows the shipped look with every chip on: the config below is the one the
         // README's first image is meant to advertise, parsed through the app's own reader so
-        // the preview cannot drift from what that JSON actually renders.
-        Shot("hero", MonitorConfig.FromJson(HeroJson), WidgetTheme.Dark, 7f, 92f, 26f);
+        // the preview cannot drift from what that JSON actually renders. Two frames are
+        // rendered - the letter markers and the icon markers - so the hero can show both.
+        Shot("hero", MonitorConfig.FromJson(HeroJson(ChipIcons.Detailed)), WidgetTheme.Dark, 7f, 92f, 26f);
+        Shot("hero_letters", MonitorConfig.FromJson(HeroJson(ChipIcons.Letter)), WidgetTheme.Dark, 7f, 92f, 26f);
     }
 
     // The look the README's hero advertises: segmented side bars, upload first, all four
-    // chips with a bar level and letter markers, each chip's text following its colour.
-    private const string HeroJson = """
+    // chips with a bar level and vector icon markers, each chip's text following its colour.
+    // The marker style is the one thing the two hero frames differ in.
+    private static string HeroJson(string chipIcon) => $$"""
         {
           "DownloadColorHex": "#2ECC71",
           "UploadColorHex": "#E6643C",
@@ -183,7 +186,7 @@ public class PreviewFrames
           "DiskTextColorHex": "",
           "BatteryTextColorHex": "",
           "ChipIndicator": "Bar",
-          "ChipIcon": "Letter",
+          "ChipIcon": "{{chipIcon}}",
           "GlassMeters": false,
           "GlassChips": false,
           "ChipTextFollowsChip": true

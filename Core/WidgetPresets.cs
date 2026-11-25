@@ -35,6 +35,7 @@ internal sealed class WidgetPreset
         string? uploadTextColor = null,
         string? chipIndicator = null,
         string? chipIcon = null,
+        int chipIconSizePercent = -1,
         bool glassMeters = false,
         bool glassChips = false,
         bool chipTextFollowsChip = false)
@@ -63,6 +64,7 @@ internal sealed class WidgetPreset
         UploadTextColor = uploadTextColor;
         ChipIndicator = chipIndicator;
         ChipIcon = chipIcon;
+        ChipIconSizePercent = chipIconSizePercent;
         GlassMeters = glassMeters;
         GlassChips = glassChips;
         ChipTextFollowsChip = chipTextFollowsChip;
@@ -119,6 +121,9 @@ internal sealed class WidgetPreset
 
     /// <summary>Explicit chip marker, or null to leave the current one.</summary>
     public string? ChipIcon { get; }
+
+    /// <summary>Explicit icon-marker size in percent, or -1 to leave the current one.</summary>
+    public int ChipIconSizePercent { get; }
 
     /// <summary>Whether the preset asks for the translucent glass tracks.</summary>
     public bool GlassMeters { get; }
@@ -446,6 +451,11 @@ internal static class WidgetPresets
             result.ChipIcon = icon;
         }
 
+        if (preset.ChipIconSizePercent > 0)
+        {
+            result.ChipIconSizePercent = preset.ChipIconSizePercent;
+        }
+
         result.GlassMeters = preset.GlassMeters;
         result.GlassChips = preset.GlassChips;
         result.ChipTextFollowsChip = preset.ChipTextFollowsChip;
@@ -513,6 +523,7 @@ internal static class WidgetPresets
             && left.CrispText == right.CrispText
             && string.Equals(left.ChipIndicator, right.ChipIndicator, StringComparison.Ordinal)
             && string.Equals(left.ChipIcon, right.ChipIcon, StringComparison.Ordinal)
+            && left.ChipIconSizePercent == right.ChipIconSizePercent
             && left.GlassMeters == right.GlassMeters
             && left.GlassChips == right.GlassChips
             && left.ChipTextFollowsChip == right.ChipTextFollowsChip;

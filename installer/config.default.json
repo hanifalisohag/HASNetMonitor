@@ -46,6 +46,7 @@
   "BatteryTextColorHex": "",
   "ChipIndicator": "Bar",
   "ChipIcon": "Letter",
+  "ChipIconSizePercent": 250,
   "GlassMeters": false,
   "GlassChips": false,
   "ChipTextFollowsChip": true

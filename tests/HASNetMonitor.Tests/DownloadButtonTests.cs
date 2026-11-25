@@ -18,8 +18,8 @@ public class DownloadButtonTests
         "https://github.com/hanifalisohag/HASNetMonitor/releases/latest";
 
     /// <summary>
-    /// The direct-download URL the README documents. It only resolves once a release has
-    /// shipped with the stable alias, so the button itself must not depend on it.
+    /// The direct-download URL the README's button points at. The workflow attaches the
+    /// stable, version-less alias to every release, so the link resolves for each one.
     /// </summary>
     private const string StableDownloadUrl = LatestReleaseUrl + "/download/" + StableAsset;
 
@@ -43,15 +43,15 @@ public class DownloadButtonTests
     }
 
     [Fact]
-    public void TheReadmeButtonLinksTheReleasePage()
+    public void TheReadmeButtonLinksTheInstaller()
     {
-        // The button must open a URL that exists for every release. The direct-download URL
-        // only resolves after a release carries the stable alias, so pointing the button at
-        // it would 404 on any release built before that alias existed.
+        // The button points straight at the installer, so one click starts the download. The
+        // workflow attaches the stable, version-less alias to every release, so the URL
+        // resolves for each one.
         string readme = Readme();
 
         Assert.Matches(
-            new Regex(@"<a href=""" + Regex.Escape(LatestReleaseUrl) + @"""\s*>\s*<img"),
+            new Regex(@"<a href=""" + Regex.Escape(StableDownloadUrl) + @"""\s*>\s*<img"),
             readme);
     }
 
@@ -74,7 +74,7 @@ public class DownloadButtonTests
         // shares the same href but has no image, so match the button form specifically.
         Match buttonMatch = Regex.Match(
             readme,
-            @"<a href=""" + Regex.Escape(LatestReleaseUrl) + @"""\s*>\s*<img");
+            @"<a href=""" + Regex.Escape(StableDownloadUrl) + @"""\s*>\s*<img");
         Assert.True(buttonMatch.Success, "the README has no download button");
         int button = buttonMatch.Index;
 
@@ -98,7 +98,7 @@ public class DownloadButtonTests
 
         Match match = Regex.Match(
             readme,
-            @"<a href=""" + Regex.Escape(LatestReleaseUrl) + @"""\s*>\s*<img[^>]*src=""([^""]+)""[^>]*width=""(\d+)""",
+            @"<a href=""" + Regex.Escape(StableDownloadUrl) + @"""\s*>\s*<img[^>]*src=""([^""]+)""[^>]*width=""(\d+)""",
             RegexOptions.Singleline);
 
         Assert.True(match.Success, "the README has no large HTML download button");

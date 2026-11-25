@@ -35,6 +35,18 @@ internal sealed class MonitorConfig
     /// <summary>The spinner's step, in percentage points: a tenth of the figure's size.</summary>
     public const int ArrowSizeStep = 10;
 
+    /// <summary>
+    /// Side of a chip's icon marker as a percentage of the letter dot it replaces. 100 draws
+    /// the icon at the dot's own size; the default is larger so the icon is legible at a
+    /// glance. Only the icon styles use it; the letter style keeps the plain dot.
+    /// </summary>
+    public const int DefaultChipIconSizePercent = 250;
+    public const int MinChipIconSizePercent = 150;
+    public const int MaxChipIconSizePercent = 300;
+
+    /// <summary>The icon-size spinner's step, in percentage points.</summary>
+    public const int ChipIconSizeStep = 50;
+
     /// <summary>The arrow shape a fresh config starts with.</summary>
     public const string DefaultArrowStyle = ArrowStyles.Classic;
 
@@ -197,6 +209,12 @@ internal sealed class MonitorConfig
     public string ChipIcon { get; set; } = ChipIcons.Letter;
 
     /// <summary>
+    /// How large the icon marker is drawn, as a percentage of the letter dot it replaces.
+    /// See <see cref="DefaultChipIconSizePercent"/>. Ignored by the letter style.
+    /// </summary>
+    public int ChipIconSizePercent { get; set; } = DefaultChipIconSizePercent;
+
+    /// <summary>
     /// Draw the bar tracks and fills with the translucent glass look: a frosted track, a
     /// gradient fill and a specular line. Off by default so existing configs look unchanged.
     /// </summary>
@@ -261,6 +279,7 @@ internal sealed class MonitorConfig
         SharedScale = true,
         AccentGlow = false,
         ArrowSizePercent = 150,
+        ChipIconSizePercent = 250,
         CrispText = false,
         StartWithWindows = true,
         ShowCpu = true,
@@ -422,6 +441,7 @@ internal sealed class MonitorConfig
         SharedScale = SharedScale,
         AccentGlow = AccentGlow,
         ArrowSizePercent = ArrowSizePercent,
+        ChipIconSizePercent = ChipIconSizePercent,
         CrispText = CrispText,
         StartWithWindows = StartWithWindows,
         ShowCpu = ShowCpu,
@@ -485,6 +505,7 @@ internal sealed class MonitorConfig
         SharedScale = other.SharedScale;
         AccentGlow = other.AccentGlow;
         ArrowSizePercent = other.ArrowSizePercent;
+        ChipIconSizePercent = other.ChipIconSizePercent;
         CrispText = other.CrispText;
         StartWithWindows = other.StartWithWindows;
         ShowCpu = other.ShowCpu;
@@ -545,6 +566,7 @@ internal sealed class MonitorConfig
         SegmentGapPx = Numeric.Clamp(SegmentGapPx, 0, MaxSegmentGapPx);
         BackdropOpacity = Numeric.Clamp(BackdropOpacity, 0, 255);
         ArrowSizePercent = Numeric.Clamp(ArrowSizePercent, MinArrowSizePercent, MaxArrowSizePercent);
+        ChipIconSizePercent = Numeric.Clamp(ChipIconSizePercent, MinChipIconSizePercent, MaxChipIconSizePercent);
 
         if (double.IsNaN(FontSizePt) || double.IsInfinity(FontSizePt))
         {

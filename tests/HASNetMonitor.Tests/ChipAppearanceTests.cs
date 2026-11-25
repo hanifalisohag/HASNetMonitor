@@ -219,8 +219,11 @@ public class ChipAppearanceTests
     }
 
     [Fact]
-    public void TheGlyphMarkerKeepsTheDotsFootprint()
+    public void TheGlyphMarkerIsLargerThanTheDot()
     {
+        // The icon is drawn bigger than the dot it replaces, so its strokes stay legible at
+        // taskbar sizes. The letter style keeps the dot's footprint, so switching to icons
+        // is the only thing that widens the marker.
         MonitorConfig letter = ChipConfig();
         MonitorConfig glyph = ChipConfig();
         glyph.ChipIcon = ChipIcons.Glyph;
@@ -228,7 +231,26 @@ public class ChipAppearanceTests
         using Frame letterFrame = Frame.Render(letter, ChipVisual());
         using Frame glyphFrame = Frame.Render(glyph, ChipVisual());
 
-        Assert.Equal(letterFrame.Layout.Size, glyphFrame.Layout.Size);
+        Assert.True(
+            glyphFrame.Layout.StatsDotSize > letterFrame.Layout.StatsDotSize,
+            $"the icon marker ({glyphFrame.Layout.StatsDotSize}) must be larger than the dot ({letterFrame.Layout.StatsDotSize})");
+        Assert.True(
+            glyphFrame.Layout.StatsDotSize % 2 == 1,
+            "the icon marker side must stay odd so it centres on a whole pixel");
+    }
+
+    [Fact]
+    public void TheLetterMarkerKeepsTheDotsFootprint()
+    {
+        // The default (letters) is unchanged: the marker is the dot, and the chip carries
+        // its "C:" prefix. Only the icon styles drop the prefix and grow the marker.
+        MonitorConfig config = ChipConfig();
+        config.ChipIcon = ChipIcons.Letter;
+
+        using Frame frame = Frame.Render(config, ChipVisual());
+
+        Assert.Equal(ChipIcons.Letter, ChipIcons.Normalize(config.ChipIcon));
+        Assert.False(ChipIcons.IsIcon(config.ChipIcon));
     }
 
     // ---- the marker stays crisp at every font size ------------------------------------

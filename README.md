@@ -35,6 +35,17 @@ shell hides or buries it.
 - Config is a plain JSON file you can edit by hand, saved automatically
 - **About** box with the version, author, contact address and licence
 
+## Download
+
+The button above points straight at the installer, so one click starts the download:
+
+```
+https://github.com/hanifalisohag/HASNetMonitor/releases/latest/download/HASNetMonitor-Setup.exe
+```
+
+The asset name is version-less, so the link keeps working across releases. Prefer to pick a
+version yourself? Browse [all releases](https://github.com/hanifalisohag/HASNetMonitor/releases).
+
 ## Presets
 
 Twenty-five ready-made looks, applied in one click from **Settings → Presets**. A preset sets
@@ -103,9 +114,15 @@ Each chip can also show its level, chosen with **Settings → Colours and behavi
 
 The marker itself is chosen with **Settings → Colours and behaviour → Chip marker**: the original
 `C:`/`R:`/`G:` letters, or drawn vector icons (a CPU square, a RAM stick, a GPU card, a disk
-cylinder and a battery). **Chip shape** adds a translucent glass pill behind each chip, and
-**Glass tracks** draws the bar tracks and fills with the same frosted look. Both work with any
-style, so the glassy look is a toggle rather than a style of its own.
+cylinder and a battery). The icons come in four styles — **Outline** (thin strokes), **Solid**
+(filled shapes), **Detailed** (a busier set whose extra strokes tell the parts apart: a chip with
+pins on all four sides, a memory stick with its chips, a card with a fan and a bracket, a platter
+with a spindle) and **Detailed, solid** (the same, filled). They are drawn larger than the letter
+dot they replace, so they stay legible at taskbar sizes, and **Icon size** scales that marker from
+150% up to 300% in 50-point steps (150, 200, 250, 300), starting at 250%. The chip text drops the letter prefix when an icon is chosen,
+since the icon already names the metric. **Chip shape** adds a translucent glass pill behind each
+chip, and **Glass tracks** draws the bar tracks and fills with the same frosted look. Both work
+with any style, so the glassy look is a toggle rather than a style of its own.
 
 ## Requirements
 

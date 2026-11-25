@@ -44,6 +44,7 @@ internal sealed class SettingsForm : Form
     private readonly CheckBox _showBattery;
     private readonly ComboBox _chipIndicator;
     private readonly ComboBox _chipIcon;
+    private readonly NumericUpDown _chipIconSize;
     private readonly CheckBox _glassChips;
     private readonly CheckBox _glassMeters;
     private readonly CheckBox _chipTextFollowsChip;
@@ -274,7 +275,12 @@ internal sealed class SettingsForm : Form
         [
             new Choice(ChipIcons.Letter, ChipIcons.Describe(ChipIcons.Letter)),
             new Choice(ChipIcons.Glyph, ChipIcons.Describe(ChipIcons.Glyph)),
+            new Choice(ChipIcons.Solid, ChipIcons.Describe(ChipIcons.Solid)),
+            new Choice(ChipIcons.Detailed, ChipIcons.Describe(ChipIcons.Detailed)),
+            new Choice(ChipIcons.DetailedSolid, ChipIcons.Describe(ChipIcons.DetailedSolid)),
         ], ChipIcons.Normalize(config.ChipIcon));
+
+        _chipIconSize = CreateChipIconSizeBox(config.ChipIconSizePercent);
 
         _glassChips = new CheckBox { Text = "Glass chip pills", Checked = config.GlassChips, AutoSize = true };
         _glassMeters = new CheckBox { Text = "Glass tracks", Checked = config.GlassMeters, AutoSize = true };
@@ -436,6 +442,7 @@ internal sealed class SettingsForm : Form
         AddRow(colours, "Scale:", Combine(_sharedScale, _maxScale));
         AddRow(colours, "Appearance:", Combine(_showBackdrop, _backdropOpacity, _startWithWindows));
         AddRow(colours, "Chip level / marker:", Combine(_chipIndicator, _chipIcon));
+        AddRow(colours, "Icon size:", _chipIconSize);
         AddRow(colours, "Chip shape:", Combine(_glassChips, _glassMeters, _chipTextFollowsChip));
         AddRow(colours, "Show chips:", statsChips);
         var columns = new TableLayoutPanel
@@ -514,7 +521,7 @@ internal sealed class SettingsForm : Form
             _fontSize, _nudgeX, _nudgeY, _offsetFromTray, _nudgeLeft, _nudgeRight, _nudgeUp, _nudgeDown,
             _resetNudge, _downloadTextMode, _uploadTextMode, _autoScale, _maxScale, _interval,
             _backdropOpacity, _startWithWindows, _showCpu, _showRam, _showGpu, _showDisk, _showBattery,
-            _chipIndicator, _chipIcon, _glassChips, _glassMeters, _chipTextFollowsChip,
+            _chipIndicator, _chipIcon, _chipIconSize, _glassChips, _glassMeters, _chipTextFollowsChip,
         })
         {
             WireForLive(input);
@@ -663,6 +670,7 @@ internal sealed class SettingsForm : Form
         _showBattery.Checked = config.ShowBattery;
         _chipIndicator.SelectedIndex = IndexOfChoice(_chipIndicator, ChipIndicators.Normalize(config.ChipIndicator));
         _chipIcon.SelectedIndex = IndexOfChoice(_chipIcon, ChipIcons.Normalize(config.ChipIcon));
+        _chipIconSize.Value = Numeric.Clamp(config.ChipIconSizePercent, MonitorConfig.MinChipIconSizePercent, MonitorConfig.MaxChipIconSizePercent);
         _glassChips.Checked = config.GlassChips;
         _glassMeters.Checked = config.GlassMeters;
         _chipTextFollowsChip.Checked = config.ChipTextFollowsChip;
@@ -1030,6 +1038,7 @@ internal sealed class SettingsForm : Form
             ShowBattery = _showBattery.Checked,
             ChipIndicator = SelectedKey(_chipIndicator, ChipIndicators.None),
             ChipIcon = SelectedKey(_chipIcon, ChipIcons.Letter),
+            ChipIconSizePercent = (int)_chipIconSize.Value,
             GlassChips = _glassChips.Checked,
             GlassMeters = _glassMeters.Checked,
             ChipTextFollowsChip = _chipTextFollowsChip.Checked,
@@ -1242,6 +1251,27 @@ internal sealed class SettingsForm : Form
 
         box.ContextMenuStrip = menu;
         return box;
+    }
+
+    /// <summary>
+    /// The icon-size spinner: how large the chip's icon marker is drawn against the letter
+    /// dot it replaces, as a percentage. 150 is the smallest stop; the default is larger so
+    /// the icon is legible at a glance. It never offers a value outside
+    /// <see cref="MonitorConfig.ChipIconSizePercent"/>'s bounds.
+    /// </summary>
+    private static NumericUpDown CreateChipIconSizeBox(int selectedPercent)
+    {
+        int percent = Numeric.Clamp(selectedPercent, MonitorConfig.MinChipIconSizePercent, MonitorConfig.MaxChipIconSizePercent);
+        return new NumericUpDown
+        {
+            Minimum = MonitorConfig.MinChipIconSizePercent,
+            Maximum = MonitorConfig.MaxChipIconSizePercent,
+            Increment = MonitorConfig.ChipIconSizeStep,
+            Value = percent,
+            Width = 70,
+            AccessibleDescription = "How large the chip's icon is drawn, as a percentage of the "
+                + "letter dot it replaces: 150 is the smallest, 300 the largest.",
+        };
     }
 
     /// <summary>

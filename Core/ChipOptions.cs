@@ -113,17 +113,41 @@ internal static class ChipIndicators
 
 /// <summary>
 /// What is drawn at the left of a statistics chip: the metric's initial letter or a
-/// small vector glyph. Kept as strings for the same reason as <see cref="ChipIndicators"/>.
+/// vector icon. Kept as strings for the same reason as <see cref="ChipIndicators"/>.
 /// </summary>
 internal static class ChipIcons
 {
     /// <summary>The metric's initial and a colon, e.g. "C:".</summary>
     public const string Letter = "Letter";
 
-    /// <summary>A hand-drawn vector glyph for the metric.</summary>
+    /// <summary>A hand-drawn outline icon for the metric.</summary>
     public const string Glyph = "Glyph";
 
-    public static IReadOnlyList<string> All { get; } = [Letter, Glyph];
+    /// <summary>A hand-drawn solid (filled) icon for the metric.</summary>
+    public const string Solid = "Solid";
+
+    /// <summary>
+    /// A busier outline icon set: the same hardware drawn with the detail that tells the
+    /// parts apart at a glance (a chip with pins on all four sides, a memory stick with its
+    /// chips, a card with a fan and a bracket, a platter with a spindle).
+    /// </summary>
+    public const string Detailed = "Detailed";
+
+    /// <summary>
+    /// The same detailed set filled in, for the boldest look.
+    /// </summary>
+    public const string DetailedSolid = "DetailedSolid";
+
+    public static IReadOnlyList<string> All { get; } = [Letter, Glyph, Solid, Detailed, DetailedSolid];
+
+    /// <summary>True when the icon replaces the letter, so the chip drops its "C:" prefix.</summary>
+    public static bool IsIcon(string? icon) => Normalize(icon) != Letter;
+
+    /// <summary>True when the icon is drawn filled rather than outlined.</summary>
+    public static bool IsSolid(string? icon) => Normalize(icon) is Solid or DetailedSolid;
+
+    /// <summary>True when the icon uses the busier, more detailed shapes.</summary>
+    public static bool IsDetailed(string? icon) => Normalize(icon) is Detailed or DetailedSolid;
 
     public static string Normalize(string? icon)
     {
@@ -144,7 +168,10 @@ internal static class ChipIcons
 
     public static string Describe(string? icon) => Normalize(icon) switch
     {
-        Glyph => "Icons (vector glyphs)",
+        Glyph => "Icons (outline)",
+        Solid => "Icons (solid)",
+        Detailed => "Icons (detailed)",
+        DetailedSolid => "Icons (detailed, solid)",
         _ => "Letters (C:, R:, ...)",
     };
 }

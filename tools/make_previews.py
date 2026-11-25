@@ -91,16 +91,22 @@ def fit_text(d, text, fnt, max_width):
 
 def hero():
     a = art("hero")
+    letters = art("hero_letters")
     padx, pady, head = 56, 44, 132
 
     # The banner is as wide as the README's other images, never narrower, so the taskbar
-    # strip below has room for the widget and the real system tray.
+    # strips below have room for the widget and the real system tray.
     W = 1200
-    bar = taskbar(a, W - padx * 2)
-    # The banner is sized from what it actually draws - the heading block and the taskbar
-    # strip - not from the raw art height, which is never pasted here. Sizing from the art
-    # left a tall empty band under the strip.
-    H = pady + head + bar.height + pady
+    bar_letters = taskbar(letters, W - padx * 2)
+    bar_icons = taskbar(a, W - padx * 2)
+
+    # Two strips, one per marker style, with a small caption above each so the pair reads as
+    # "letters, then icons" rather than as two unrelated taskbars.
+    cap = 22
+    gap = 18
+    # The banner is sized from what it actually draws - the heading block and the two taskbar
+    # strips - not from the raw art height, which is never pasted here.
+    H = pady + head + cap + bar_letters.height + gap + cap + bar_icons.height + pady
     im = Image.new("RGBA", (W, H), BG)
     d = ImageDraw.Draw(im)
     for y in range(H):
@@ -117,7 +123,7 @@ def hero():
 
     # The heading block is short, so the right of the banner would sit empty. A short
     # feature list fills it and says what the widget does, in the space the eye already
-    # travels across on the way to the taskbar strip below.
+    # travels across on the way to the taskbar strips below.
     feats = [
         ("Ten widget styles", "bars, rings, neon and more"),
         ("Live figures", "upload and download, every second"),
@@ -134,8 +140,16 @@ def hero():
 
     # The widget sits on a real Windows 11 taskbar: the live figures where the app puts
     # them and the system tray - Wi-Fi, volume, battery, clock - on the right, so the
-    # preview shows the widget in the place it actually lives.
-    im.paste(bar, (padx, pady + head - 6), bar)
+    # preview shows the widget in the place it actually lives. The letter markers come
+    # first, the icon markers below, so the first image shows both marker styles.
+    y = pady + head - 6
+    d.text((padx, y), "Letter markers", font=bold(13), fill=MUTED)
+    y += cap
+    im.paste(bar_letters, (padx, y), bar_letters)
+    y += bar_letters.height + gap
+    d.text((padx, y), "Icon markers", font=bold(13), fill=MUTED)
+    y += cap
+    im.paste(bar_icons, (padx, y), bar_icons)
     save(im, "hero.png")
 
 
